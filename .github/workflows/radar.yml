@@ -1,0 +1,38 @@
+# Free cloud runner: each job runs the radar for ~13 minutes and keeps its SQLite DB in the
+# Actions cache so velocity history, alert cooldowns and backtest data survive between runs.
+# Public repos: unlimited free minutes. Private repos: 2,000 free min/month, which is about
+# 150 runs, so use a sparse schedule (or make the repo public).
+# Add repository secrets DISCORD_WEBHOOK_URL and/or TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID.
+name: radar
+on:
+  workflow_dispatch:
+  # Uncomment to run automatically (only takes effect on the default branch):
+  # schedule:
+  #   - cron: "*/15 * * * *"
+concurrency: radar
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - uses: actions/cache/restore@v4
+        with:
+          path: memeradar.db
+          key: radar-db-${{ github.run_id }}
+          restore-keys: radar-db-
+      - run: python -m memeradar run --duration 780
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      - uses: actions/cache/save@v4
+        if: always()
+        with:
+          path: memeradar.db
+          key: radar-db-${{ github.run_id }}

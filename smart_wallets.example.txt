@@ -1,0 +1,4 @@
+# One Solana wallet per line. Buys from these wallets in pump.fun tokens raise the
+# "smart_money" score. Build your list for free by looking up early buyers of past
+# winners on Solscan / DexScreener "Top traders" tab. Copy to smart_wallets.txt.
+# ExampleWa11etAddressGoesHere1111111111111111   # comment

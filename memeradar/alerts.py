@@ -1,0 +1,51 @@
+"""Free alert sinks: Discord webhook + Telegram bot."""
+from __future__ import annotations
+
+import logging
+
+from .config import Config
+from .http import Http
+from .models import TokenState
+
+log = logging.getLogger(__name__)
+
+
+def _usd(x: float | None) -> str:
+    if x is None:
+        return "?"
+    for div, suf in ((1e9, "B"), (1e6, "M"), (1e3, "k")):
+        if abs(x) >= div:
+            return f"${x / div:.1f}{suf}"
+    return f"${x:.0f}"
+
+
+def format_alert(t: TokenState) -> str:
+    f = t.features
+    age = f"{t.age_minutes:.0f}m" if t.age_minutes is not None else "?"
+    link = f"https://dexscreener.com/{t.chain}/{t.pair_address or t.address}"
+    return (
+        f"🚀 ${t.symbol or '?'} ({t.name}) on {t.chain} — score {t.score:.2f}\n"
+        f"age {age} · liq {_usd(t.liquidity_usd)} · mcap {_usd(t.market_cap)} · "
+        f"vol 5m {_usd(t.vol_m5)} / 1h {_usd(t.vol_h1)}\n"
+        f"social {f.get('social_velocity', 0):.2f} · volume {f.get('volume_acceleration', 0):.2f} · "
+        f"wallets {f.get('wallet_diversity', 0):.2f} · liq {f.get('liquidity_depth', 0):.2f} · "
+        f"smart$ {f.get('smart_money', 0):.2f}\n"
+        f"top10 {t.safety.top10_pct if t.safety else '?'}% · holders {t.safety.holders if t.safety else '?'}\n"
+        f"{t.address}\n{link}\n"
+        f"Not financial advice. Safety checks reduce, not remove, rug risk."
+    )
+
+
+async def send(http: Http, cfg: Config, t: TokenState) -> None:
+    text = format_alert(t)
+    sent = False
+    if cfg.discord_webhook_url:
+        await http.post(cfg.discord_webhook_url, json={"content": text[:1990]}, retries=1)
+        sent = True
+    if cfg.telegram_bot_token and cfg.telegram_chat_id:
+        await http.post(f"https://api.telegram.org/bot{cfg.telegram_bot_token}/sendMessage",
+                        json={"chat_id": cfg.telegram_chat_id, "text": text,
+                              "disable_web_page_preview": True}, retries=1)
+        sent = True
+    if not sent:
+        log.info("ALERT\n%s", text)

@@ -1,0 +1,37 @@
+# Copy to config.toml and edit. Every key is optional; defaults shown.
+# Secrets are better passed as env vars: DISCORD_WEBHOOK_URL, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
+
+chains = ["solana", "base", "ethereum"]
+enable_pumpportal = true      # pump.fun new tokens + live trades (Solana only)
+enable_dexscreener = true
+enable_geckoterminal = true
+enable_reddit = true
+subreddits = ["memecoins", "solanamemecoins", "CryptoMoonShots", "SatoshiStreetBets"]
+
+score_interval = 30           # seconds between scoring cycles
+max_tracked_tokens = 300
+
+# Phase-1 pre-filter: only tokens above these levels hit the safety APIs
+min_volume_h1_usd = 10000
+min_liquidity_usd = 3000
+
+alert_threshold = 0.60
+alert_cooldown_minutes = 60
+
+db_path = "memeradar.db"
+dashboard_port = 8080
+
+[weights]                     # W1..W5 – run `python -m memeradar tune` to fit these to your data
+social_velocity = 0.30
+volume_acceleration = 0.30
+wallet_diversity = 0.20
+liquidity_depth = 0.10
+smart_money = 0.10
+
+[safety]
+max_top10_pct = 50.0
+max_tax_pct = 5.0
+min_lp_locked_pct = 50.0
+reject_mint_authority = true
+reject_freeze_authority = true
+allow_unverified = false
