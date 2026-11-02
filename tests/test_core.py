@@ -159,3 +159,41 @@ def test_reference_price_uses_24h_change_for_young_coins():
                    pair_created_at=time.time() - 600)
     t.first_price = 3.5
     assert t.reference_price() == 1.0
+
+
+# ---------------------------------------------------------------- exit alerts
+from memeradar import exits as ex  # noqa: E402
+
+
+def _pos():
+    return ex.Position(chain="solana", address="A", symbol="X", pair_address="P", entry_ts=time.time(),
+                       entry_price=1.0, entry_liquidity=20_000, peak_price=1.0)
+
+
+def test_exit_take_profit_levels_fire_once():
+    p, r = _pos(), ex.ExitRules()
+    assert [s.title for s in ex.evaluate(p, 1.6, 20_000, "RUNNING", r)] == ["TAKE PROFIT"]
+    assert ex.evaluate(p, 1.7, 20_000, "RUNNING", r) == []
+    assert [s.title for s in ex.evaluate(p, 2.1, 20_000, "RUNNING", r)] == ["TAKE PROFIT"]
+    assert not p.closed
+
+
+def test_exit_trailing_stop_after_peak():
+    p, r = _pos(), ex.ExitRules()
+    ex.evaluate(p, 1.86, 20_000, "RUNNING", r)            # the Learjet +86% peak
+    sigs = ex.evaluate(p, 1.30, 20_000, "LATE", r)        # 30% off the high
+    assert sigs[0].title == "GET OUT" and p.closed
+    assert ex.evaluate(p, 0.02, 0, "DUMPING", r) == []    # watch already over
+
+
+def test_exit_rug_and_stop_loss():
+    p = _pos()
+    assert ex.evaluate(p, 0.9, 5_000, "RUNNING", ex.ExitRules())[0].title == "RUG WARNING"
+    p = _pos()
+    assert ex.evaluate(p, 0.65, 19_000, "RUNNING", ex.ExitRules())[0].title == "STOP LOSS"
+
+
+def test_exit_fading_warning_once():
+    p, r = _pos(), ex.ExitRules()
+    assert [s.title for s in ex.evaluate(p, 1.05, 20_000, "LATE", r)] == ["FADING"]
+    assert ex.evaluate(p, 1.04, 20_000, "LATE", r) == []

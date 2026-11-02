@@ -10,7 +10,7 @@ import logging
 import time
 from collections import OrderedDict
 
-from . import alerts, safety, scoring, stage
+from . import alerts, exits, safety, scoring, stage
 from .config import Config
 from .http import Http
 from .models import TokenState
@@ -35,6 +35,10 @@ class Radar:
         self.tokens: dict[tuple[str, str], TokenState] = {}
         self.rejected: OrderedDict[tuple[str, str], float] = OrderedDict()
         self.pending_addresses: OrderedDict[str, None] = OrderedDict()
+        self.positions: dict[tuple[str, str], exits.Position] = {}
+        for raw in self.store.load_positions():
+            pos = exits.Position(**raw)
+            self.positions[(pos.chain, pos.address)] = pos
         self.pump = (PumpPortal(self._on_new_pump_token, self._on_pump_trade, cfg.pumpportal_api_key)
                      if cfg.enable_pumpportal else None)
 
@@ -48,14 +52,18 @@ class Radar:
         if key in self.rejected:
             return None
         if len(self.tokens) >= self.cfg.max_tracked_tokens:
-            victim = min(self.tokens.values(), key=lambda t: (t.score, t.last_activity))
-            self._drop(victim.key)
+            candidates = [t for t in self.tokens.values() if t.key not in self.positions]
+            if candidates:
+                victim = min(candidates, key=lambda t: (t.score, t.last_activity))
+                self._drop(victim.key)
         t = TokenState(chain=chain, address=address, source=source, symbol=symbol, name=name)
         self.tokens[key] = t
         log.debug("tracking %s %s (%s)", chain, symbol or address, source)
         return t
 
     def _drop(self, key: tuple[str, str], reject: bool = False) -> None:
+        if key in self.positions and not reject:
+            return  # still watching it for an exit
         t = self.tokens.pop(key, None)
         if reject:
             self.rejected[key] = time.time()
@@ -229,10 +237,49 @@ class Radar:
                     self.store.alert(t)
                     await alerts.send(self.http, self.cfg, t)
                     alerted.append(t)
+                    if t.key not in self.positions and t.price_usd:
+                        pos = exits.Position(chain=t.chain, address=t.address, symbol=t.symbol,
+                                             pair_address=t.pair_address, entry_ts=now,
+                                             entry_price=t.price_usd, entry_liquidity=t.liquidity_usd,
+                                             peak_price=t.price_usd)
+                        self.positions[t.key] = pos
+                        self.store.save_position(pos)
         self.store.commit()
         log.info("cycle: tracking %d tokens, %d scored, %d alerts", len(self.tokens),
                  sum(1 for t in self.tokens.values() if t.features), len(alerted))
         return alerted
+
+    # ------------------------------------------------------------------ exits
+    async def exit_cycle(self) -> None:
+        """Fast loop (every ~10s) over alerted coins: take-profit / get-out signals."""
+        open_pos = [p for p in self.positions.values() if not p.closed]
+        if not open_pos:
+            return
+        by_chain: dict[str, list[str]] = {}
+        for p in open_pos:
+            by_chain.setdefault(p.chain, []).append(p.address)
+        snaps: dict[tuple[str, str], dict] = {}
+        for chain, addrs in by_chain.items():
+            for addr, snap in (await dexscreener.snapshots(self.http, chain, addrs)).items():
+                snaps[(chain, addr)] = snap
+        for pos in open_pos:
+            key = (pos.chain, pos.address)
+            snap = snaps.get(key)
+            if not snap:
+                continue
+            t = self.tokens.get(key)
+            if t:
+                self._apply_market(t, snap)
+            st = t.stage.stage if t and t.stage else None
+            for sig in exits.evaluate(pos, snap.get("price_usd"), snap.get("liquidity_usd"), st,
+                                      self.cfg.exits):
+                log.info("EXIT %s %s: %s", pos.symbol, sig.title, sig.detail)
+                self.store.exit_event(pos, sig)
+                await alerts.send_text(self.http, self.cfg, exits.format_exit(pos, sig))
+            self.store.save_position(pos)
+            if pos.closed:
+                self.positions.pop(key, None)
+        self.store.commit()
 
     # ------------------------------------------------------------------ run
     async def run(self, duration: float | None = None, dashboard: bool = False) -> None:
@@ -247,6 +294,7 @@ class Radar:
         if self.pump:
             tasks.append(self.pump.run())
         tasks.append(self._every(cfg.score_interval, self.score_cycle))
+        tasks.append(self._every(cfg.exits.check_interval, self.exit_cycle))
         if dashboard:
             from .dashboard import serve
             tasks.append(serve(self.store, cfg))

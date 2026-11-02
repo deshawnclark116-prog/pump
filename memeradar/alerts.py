@@ -49,7 +49,10 @@ def format_alert(t: TokenState) -> str:
 
 
 async def send(http: Http, cfg: Config, t: TokenState) -> None:
-    text = format_alert(t)
+    await send_text(http, cfg, format_alert(t))
+
+
+async def send_text(http: Http, cfg: Config, text: str) -> None:
     sent = False
     if cfg.discord_webhook_url:
         await http.post(cfg.discord_webhook_url, json={"content": text[:1990]}, retries=1)

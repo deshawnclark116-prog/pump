@@ -48,3 +48,12 @@ min_buyers_m5 = 10            # unique buyers in the last 5 min needed for EARLY
 accel_ratio = 1.3             # buyers must be arriving 1.3x faster than the 10 min before
 fade_ratio = 0.6              # below 0.6x = buyers drying up -> LATE (if it already ran 2x+)
 sell_pressure = 1.3           # sellers > 1.3x buyers in last 5 min -> DUMPING
+
+[exits]                       # exit alerts for coins that were alerted
+take_profit_levels = [50.0, 100.0, 200.0]   # 🟠 "take profit" at these % gains
+trailing_stop_pct = 25.0      # 🔴 "get out" when it falls this % from its high since the alert...
+trailing_arm_pct = 10.0       #    ...once it has been up at least this %
+stop_loss_pct = 30.0          # 🔴 "stop loss" this % below the alert price
+liquidity_drop_pct = 50.0     # 🔴 "rug warning" when half the pool's money is pulled
+max_watch_hours = 6.0
+check_interval = 10           # seconds between exit checks

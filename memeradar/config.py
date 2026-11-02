@@ -6,6 +6,7 @@ import tomllib
 from dataclasses import dataclass, field, fields
 from pathlib import Path
 
+from .exits import ExitRules
 from .stage import StageRules
 
 
@@ -77,6 +78,7 @@ class Config:
     weights: Weights = field(default_factory=Weights)
     safety: SafetyRules = field(default_factory=SafetyRules)
     stage: StageRules = field(default_factory=StageRules)
+    exits: ExitRules = field(default_factory=ExitRules)
 
     smart_wallets: set[str] = field(default_factory=set)
 

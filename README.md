@@ -59,6 +59,25 @@ coins, from the 24h price change for coins under a day old, and from today's gai
 coins. "Peak" means the highest price seen since the radar started watching. All of the
 thresholds are in the `[stage]` section of `config.example.toml`.
 
+## Exit alerts
+
+Every alerted coin keeps being watched every 10 seconds, for up to 6 hours:
+
+| Alert | When |
+|---|---|
+| 🟠 TAKE PROFIT | up +50%, +100%, +200% since the alert (each once) |
+| 🟠 FADING | stage turned LATE: buyers drying up |
+| 🔴 GET OUT | 25% off its high since the alert (once it has been up 10%+) |
+| 🔴 STOP LOSS | 30% below the alert price |
+| 🔴 DUMPING | sellers swamping buyers |
+| 🔴 RUG WARNING | half the pool's liquidity pulled since the alert |
+
+A red alert ends the watch. To see every alert and what it did afterwards:
+
+```bash
+python -m memeradar report
+```
+
 ## Pipeline
 
 1. **Radar (ingestion).** Every new pump.fun token arrives over PumpPortal. DexScreener and GeckoTerminal add fresh and boosted tokens on Solana,

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import asdict
 import sqlite3
 import time
 
@@ -15,6 +16,10 @@ CREATE TABLE IF NOT EXISTS snapshots (
     price_usd REAL, liquidity_usd REAL, vol_m5 REAL, vol_h1 REAL, market_cap REAL);
 CREATE INDEX IF NOT EXISTS snap_token ON snapshots (chain, address, ts);
 CREATE TABLE IF NOT EXISTS alerts (ts REAL, chain TEXT, address TEXT, symbol TEXT, score REAL, price_usd REAL);
+CREATE TABLE IF NOT EXISTS positions (chain TEXT, address TEXT, entry_ts REAL, data TEXT,
+    PRIMARY KEY (chain, address, entry_ts));
+CREATE TABLE IF NOT EXISTS exit_events (ts REAL, chain TEXT, address TEXT, symbol TEXT, level TEXT,
+    title TEXT, detail TEXT, change_pct REAL);
 """
 
 
@@ -67,3 +72,27 @@ class Store:
     def all_snapshots(self) -> list[dict]:
         return [dict(r) for r in self.db.execute(
             "SELECT * FROM snapshots WHERE price_usd IS NOT NULL ORDER BY chain, address, ts")]
+
+    # ---------------------------------------------------------------- exit tracking
+    def save_position(self, pos) -> None:
+        self.db.execute("INSERT OR REPLACE INTO positions VALUES (?,?,?,?)",
+                        (pos.chain, pos.address, pos.entry_ts, json.dumps(asdict(pos))))
+
+    def load_positions(self, open_only: bool = True) -> list[dict]:
+        rows = [json.loads(r[0]) for r in self.db.execute("SELECT data FROM positions ORDER BY entry_ts")]
+        return [r for r in rows if not (open_only and r.get("closed"))]
+
+    def exit_event(self, pos, sig) -> None:
+        price = pos.last_price or pos.entry_price
+        self.db.execute("INSERT INTO exit_events VALUES (?,?,?,?,?,?,?,?)",
+                        (time.time(), pos.chain, pos.address, pos.symbol, sig.level, sig.title,
+                         sig.detail, pos.change(price)))
+
+    def exit_events_for(self, chain: str, address: str, since: float) -> list[dict]:
+        return [dict(r) for r in self.db.execute(
+            "SELECT * FROM exit_events WHERE chain=? AND address=? AND ts>=? ORDER BY ts",
+            (chain, address, since))]
+
+    def max_price_since(self, chain: str, address: str, since: float) -> float | None:
+        return self.db.execute("SELECT MAX(price_usd) FROM snapshots WHERE chain=? AND address=? AND ts>=?",
+                               (chain, address, since)).fetchone()[0]
