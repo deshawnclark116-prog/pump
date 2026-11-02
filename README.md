@@ -11,9 +11,10 @@ paid APIs and no API keys, only one Python dependency (`aiohttp`), and runs as a
 
 | Blueprint layer | Paid version | What this repo uses (free) |
 |---|---|---|
-| New pools / launches | Helius / QuickNode / Alchemy WebSockets | **PumpPortal** free WebSocket (every pump.fun launch + live trades with wallet addresses), **GeckoTerminal** new/trending pools, **DexScreener** latest profiles & boosts |
+| New pools / launches | Helius / QuickNode / Alchemy WebSockets | **PumpPortal** free WebSocket (every pump.fun launch), **GeckoTerminal** new/trending pools, **DexScreener** latest profiles & boosts |
+| Buyer activity | Paid trade streams | **GeckoTerminal** unique buyers/sellers per 5/15/30/60 min, 30 coins per request |
 | Volume / liquidity | Birdeye API | **DexScreener** public API (300 req/min, no key) |
-| Smart-money tracking | Nansen, paid indexers | Your own wallet list (`smart_wallets.txt`) matched against PumpPortal live trades |
+| Smart-money tracking | Nansen, paid indexers | Off by default. Optional wallet list, only works with a funded PumpPortal key |
 | X / Twitter | X API ($200+/mo) | **Reddit public RSS** ($TICKER cashtags + contract addresses, counted by unique author). X is left out because it has no usable free tier |
 | Contract security | n/a | **RugCheck** (Solana) and **GoPlus** (EVM), both free without keys |
 | Kafka / Redpanda | streaming cluster | `asyncio` tasks in one process |
@@ -40,13 +41,31 @@ export TELEGRAM_BOT_TOKEN="123:abc"  TELEGRAM_CHAT_ID="-100..."       # @BotFath
 For tuning, copy `config.example.toml` to `config.toml`. To track smart money, copy
 `smart_wallets.example.txt` to `smart_wallets.txt`.
 
+## Early or late? The stage detector
+
+A coin with high volume might be just starting, or it might be the top. Every coin gets a label
+built only from its own data:
+
+| Stage | Meaning | Alerts? |
+|---|---|---|
+| 🟢 **EARLY** | Under 4h old, under 3x from launch, new buyers arriving at least 1.3x faster than the 10 min before, more buyers than sellers | yes |
+| 🟡 **RUNNING** | Moving and still bought, but already up, or an older coin | dashboard only (add `"RUNNING"` to `alert_stages` to change that) |
+| 🔴 **LATE** | 8x or more already, 20%+ off its peak, or new buyers drying up after a 2x+ run | no |
+| 🔴 **DUMPING** | 35%+ off its peak, or sellers clearly outnumber buyers | no |
+
+The final score is momentum × stage (EARLY ×1.0, RUNNING ×0.75, LATE ×0.3, DUMPING ×0), so a
+coin that has already ripped can't top the list. "Run-up" is measured from launch for pump.fun
+coins, from the 24h price change for coins under a day old, and from today's gain for older
+coins. "Peak" means the highest price seen since the radar started watching. All of the
+thresholds are in the `[stage]` section of `config.example.toml`.
+
 ## Pipeline
 
-1. **Radar (ingestion).** Every new pump.fun token arrives over PumpPortal, and its trades are
-   streamed for 30 minutes. DexScreener and GeckoTerminal add fresh and boosted tokens on Solana,
+1. **Radar (ingestion).** Every new pump.fun token arrives over PumpPortal. DexScreener and GeckoTerminal add fresh and boosted tokens on Solana,
    Base and Ethereum. Contract addresses found in Reddit posts get resolved and tracked too.
 2. **Phase-1 pre-filter.** A token is checked further only once it does at least $10k of volume
-   per hour and has at least $3k of liquidity. This keeps the free safety APIs inside their rate
+   per hour, or $3k in the last 5 minutes (the fast lane for new launches), and has at least $3k
+   of liquidity. This keeps the free safety APIs inside their rate
    limits. Tokens that never get there are dropped after 20 minutes.
 3. **Shield (safety).** A token is rejected if any of these is true:
    - mint or freeze authority is still enabled
@@ -63,12 +82,13 @@ For tuning, copy `config.example.toml` to `config.toml`. To track smart money, c
      A contract-address hit counts fully. A bare `$TICKER` counts half, because tickers collide.
    - `volume_acceleration`: 1 h volume ÷ liquidity, plus how much faster the last 5 min traded
      than the hourly pace (adjusted for token age).
-   - `wallet_diversity`: unique buyers in the last 15 min, discounted by the **Gini coefficient**
-     of buy sizes so a few whales can't fake breadth, plus holder count and top-10 spread.
-     DexScreener buy/sell counts are the fallback for non-pump.fun tokens.
+   - `wallet_diversity`: unique buyers vs. sellers in the last 15 min (GeckoTerminal), plus holder
+     count and top-10 spread.
    - `liquidity_depth`: log scale, where $5k scores 0 and $500k scores 1.
-   - `smart_money`: wallets from your `smart_wallets.txt` that bought in.
-5. **Alerts and dashboard.** A token that scores at least `alert_threshold` (0.60) triggers a
+   - `smart_money`: off by default (weight 0).
+
+   Then the stage multiplier is applied (see above).
+5. **Alerts and dashboard.** An **EARLY** token that scores at least `alert_threshold` (0.40) triggers a
    Discord/Telegram message, with a 60-minute cooldown per token. Every score is stored in SQLite.
 6. **Backtest and tune (Phase 4).**
    ```bash
@@ -93,11 +113,15 @@ For tuning, copy `config.example.toml` to `config.toml`. To track smart money, c
 
 ## Known limits of the free stack
 
-- Without X/Twitter, social signal mostly comes from Reddit. With no Reddit chatter a token can
-  score at most 0.70, so lower `social_velocity` or the threshold if you want more alerts.
+- Without X/Twitter, social signal mostly comes from Reddit, and most coins have none.
+- PumpPortal's per-trade feed (individual wallets) now needs an API key funded with 0.02 SOL.
+  It isn't needed, because buyer counts come from GeckoTerminal for free. If you get a key anyway,
+  set `PUMPPORTAL_API_KEY` and per-wallet data turns on.
+- Buyer counts refresh about every 20 seconds, so "early" means minutes 2 to 15, not the launch
+  second. Bots will always be faster.
+- The radar can't see a peak from before it started watching a coin. Run it continuously.
+- The 0.40 threshold is a starting guess. Use `backtest` after a few days to set it properly.
 - GeckoTerminal's free tier returns 429s when it's busy. The client backs off automatically.
-- "Smart money" is only as good as your wallet list, and live trades are only available for
-  pump.fun tokens.
 - RugCheck and GoPlus limits are undocumented. The client spaces out calls (about 1 every
   1–2 seconds) and checks at most 8 tokens per cycle.
 

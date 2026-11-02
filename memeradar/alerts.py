@@ -23,13 +23,25 @@ def format_alert(t: TokenState) -> str:
     f = t.features
     age = f"{t.age_minutes:.0f}m" if t.age_minutes is not None else "?"
     link = f"https://dexscreener.com/{t.chain}/{t.pair_address or t.address}"
+    st = t.stage
+    stage_line = ""
+    if st:
+        icon = {"EARLY": "🟢", "RUNNING": "🟡"}.get(st.stage, "🔴")
+        bits = [f"{icon} {st.stage}"]
+        if st.runup:
+            bits.append(f"{st.runup:.1f}x since launch")
+        if st.drawdown:
+            bits.append(f"{st.drawdown:.0%} off peak")
+        if t.buyers:
+            bits.append(f"buyers 5m {t.buyers.get('m5', 0)} / sellers {(t.sellers or {}).get('m5', 0)}")
+        stage_line = " · ".join(bits) + (f"\n({'; '.join(st.reasons)})" if st.reasons else "") + "\n"
     return (
         f"🚀 ${t.symbol or '?'} ({t.name}) on {t.chain} — score {t.score:.2f}\n"
+        f"{stage_line}"
         f"age {age} · liq {_usd(t.liquidity_usd)} · mcap {_usd(t.market_cap)} · "
         f"vol 5m {_usd(t.vol_m5)} / 1h {_usd(t.vol_h1)}\n"
         f"social {f.get('social_velocity', 0):.2f} · volume {f.get('volume_acceleration', 0):.2f} · "
-        f"wallets {f.get('wallet_diversity', 0):.2f} · liq {f.get('liquidity_depth', 0):.2f} · "
-        f"smart$ {f.get('smart_money', 0):.2f}\n"
+        f"buyers {f.get('wallet_diversity', 0):.2f} · liq {f.get('liquidity_depth', 0):.2f}\n"
         f"top10 {t.safety.top10_pct if t.safety else '?'}% · holders {t.safety.holders if t.safety else '?'}\n"
         f"{t.address}\n{link}\n"
         f"Not financial advice. Safety checks reduce, not remove, rug risk."

@@ -8,25 +8,27 @@ enable_geckoterminal = true
 enable_reddit = true
 subreddits = ["memecoins", "solanamemecoins", "CryptoMoonShots", "SatoshiStreetBets"]
 
-score_interval = 30           # seconds between scoring cycles
+score_interval = 20           # seconds between scoring cycles
 max_tracked_tokens = 300
 
 # Phase-1 pre-filter: only tokens above these levels hit the safety APIs
 min_volume_h1_usd = 10000
 min_liquidity_usd = 3000
+early_min_volume_m5_usd = 3000   # fast lane: a burst in the last 5 min gets checked right away
 
-alert_threshold = 0.60
+alert_threshold = 0.40
+alert_stages = ["EARLY"]       # add "RUNNING" for more (later, riskier) alerts
 alert_cooldown_minutes = 60
 
 db_path = "memeradar.db"
 dashboard_port = 8080
 
 [weights]                     # W1..W5 – run `python -m memeradar tune` to fit these to your data
-social_velocity = 0.30
-volume_acceleration = 0.30
-wallet_diversity = 0.20
-liquidity_depth = 0.10
-smart_money = 0.10
+social_velocity = 0.25
+volume_acceleration = 0.35
+wallet_diversity = 0.25        # unique buyers vs sellers
+liquidity_depth = 0.15
+smart_money = 0.0              # off: only used if you add wallets to smart_wallets.txt
 
 [safety]
 max_top10_pct = 50.0
@@ -35,3 +37,14 @@ min_lp_locked_pct = 50.0
 reject_mint_authority = true
 reject_freeze_authority = true
 allow_unverified = false
+
+[stage]                       # EARLY / RUNNING / LATE / DUMPING detector
+early_max_runup = 3.0         # EARLY only while price is under 3x its launch / 24h-ago level
+late_runup = 8.0              # 8x or more -> LATE
+dump_drawdown = 0.35          # 35% below the peak we saw -> DUMPING
+late_drawdown = 0.20          # 20% below peak -> LATE
+early_max_age_minutes = 240   # coins older than 4h are never EARLY
+min_buyers_m5 = 10            # unique buyers in the last 5 min needed for EARLY
+accel_ratio = 1.3             # buyers must be arriving 1.3x faster than the 10 min before
+fade_ratio = 0.6              # below 0.6x = buyers drying up -> LATE (if it already ran 2x+)
+sell_pressure = 1.3           # sellers > 1.3x buyers in last 5 min -> DUMPING

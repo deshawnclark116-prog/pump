@@ -79,7 +79,12 @@ def volume_acceleration(t: TokenState) -> float:
 
 def wallet_diversity(t: TokenState, window: float = 15 * 60) -> float:
     buys = [it for it in t.trades.window(window) if it and it[1] == "buy"]
-    if buys:
+    if t.buyers and t.sellers is not None:
+        # unique wallets (free, GeckoTerminal): breadth of buying and buyer/seller balance
+        b, s = t.buyers.get("m15", 0), t.sellers.get("m15", 0)
+        balance = b / (b + s) if b + s else 0.0
+        live = sat(b, 60) * clip((balance - 0.35) / 0.3)
+    elif buys:
         per_wallet: dict[str, float] = defaultdict(float)
         for wallet, _, sol in buys:
             per_wallet[wallet] += sol

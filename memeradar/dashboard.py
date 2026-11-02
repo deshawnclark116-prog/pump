@@ -20,11 +20,11 @@ h1{font-size:18px;margin:0 0 4px} p{color:var(--muted);margin:0 0 12px}
 .wrap{overflow-x:auto} table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
 th,td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
 th:first-child,td:first-child{text-align:left} th{color:var(--muted);font-weight:500}
-.score{font-weight:600} .hot{color:var(--hi)} a{color:inherit}
+.score{font-weight:600} .st-EARLY{color:var(--hi);font-weight:600} .st-LATE,.st-DUMPING{color:#d33} .hot{color:var(--hi)} a{color:inherit}
 </style></head><body>
 <h1>Meme Radar</h1><p id="meta">loading…</p>
 <div class="wrap"><table><thead><tr><th>Token</th><th>Score</th><th>Social</th><th>Volume</th>
-<th>Wallets</th><th>Liq</th><th>Smart$</th><th>Liquidity</th><th>Vol 1h</th><th>MCap</th><th>Seen</th></tr></thead>
+<th>Stage</th><th>Run-up</th><th>Buyers</th><th>Liq</th><th>Liquidity</th><th>Vol 1h</th><th>MCap</th><th>Seen</th></tr></thead>
 <tbody id="rows"></tbody></table></div>
 <script>
 const usd=x=>x==null?"–":x>=1e6?"$"+(x/1e6).toFixed(1)+"M":x>=1e3?"$"+(x/1e3).toFixed(1)+"k":"$"+x.toFixed(0);
@@ -37,8 +37,8 @@ async function load(){
     return `<tr><td><a href="https://dexscreener.com/${esc(t.chain)}/${esc(t.address)}" target="_blank" rel="noopener">$${esc(t.symbol||"?")}</a> <small>${esc(t.chain)}</small></td>
     <td class="score ${t.score>=d.threshold?"hot":""}">${t.score.toFixed(2)}</td>
     <td>${(f.social_velocity||0).toFixed(2)}</td><td>${(f.volume_acceleration||0).toFixed(2)}</td>
-    <td>${(f.wallet_diversity||0).toFixed(2)}</td><td>${(f.liquidity_depth||0).toFixed(2)}</td>
-    <td>${(f.smart_money||0).toFixed(2)}</td><td>${usd(t.liquidity_usd)}</td><td>${usd(t.vol_h1)}</td>
+    <td class="st-${esc(f.stage)}">${esc(f.stage||"–")}</td><td>${f.runup?f.runup.toFixed(1)+"x":"–"}</td>
+    <td>${(f.wallet_diversity||0).toFixed(2)}</td><td>${(f.liquidity_depth||0).toFixed(2)}</td><td>${usd(t.liquidity_usd)}</td><td>${usd(t.vol_h1)}</td>
     <td>${usd(t.market_cap)}</td><td>${ago}m ago</td></tr>`}).join("");
 }
 load();setInterval(load,15000);

@@ -5,6 +5,8 @@ import time
 from collections import deque
 from dataclasses import dataclass, field
 
+from .stage import StageResult
+
 
 class RollingEvents:
     """Timestamped events kept for `horizon` seconds."""
@@ -66,6 +68,20 @@ class TokenState:
     sells_h1: int = 0
     pair_created_at: float | None = None
     market_updated_at: float = 0.0
+    price_native: float | None = None
+    quote_symbol: str = ""
+    price_change: dict[str, float] = field(default_factory=dict)   # m5/h1/h6/h24 %, from DexScreener
+
+    # unique buyer/seller counts per window (m5, m15, m30, h1), from GeckoTerminal
+    buyers: dict[str, int] | None = None
+    sellers: dict[str, int] | None = None
+
+    # where did it start, how high has it been
+    launch_mcap_sol: float | None = None   # pump.fun create event
+    first_price: float | None = None
+    peak_price: float | None = None
+    stage: StageResult | None = None
+    momentum: float = 0.0                  # score before the stage discount
 
     # live trades from PumpPortal: item = (wallet, side, sol_amount)
     trades: RollingEvents = field(default_factory=lambda: RollingEvents(3600))
@@ -79,6 +95,24 @@ class TokenState:
     @property
     def key(self) -> tuple[str, str]:
         return (self.chain, self.address)
+
+    def reference_price(self) -> float | None:
+        """Best guess of the price at launch, to measure how far it has already run."""
+        refs = []
+        if self.first_price:
+            refs.append(self.first_price)
+        if self.price_usd:
+            # DexScreener % change: for coins under 24h old this is the change since launch;
+            # for older coins it is "how much has it already ripped today"
+            for w in ("h6", "h24"):
+                pc = self.price_change.get(w)
+                if pc and pc > -100:
+                    refs.append(self.price_usd / (1 + pc / 100))
+            if self.launch_mcap_sol and self.market_cap and self.price_native and self.quote_symbol == "SOL":
+                sol_usd = self.price_usd / self.price_native
+                refs.append(self.price_usd * self.launch_mcap_sol * sol_usd / self.market_cap)
+        refs = [r for r in refs if r and r > 0]
+        return min(refs) if refs else None
 
     @property
     def age_minutes(self) -> float | None:

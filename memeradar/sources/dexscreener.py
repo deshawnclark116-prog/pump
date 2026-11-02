@@ -58,6 +58,9 @@ def parse_pair(pair: dict) -> dict:
         "buys_h1": int(_f((txns.get("h1") or {}).get("buys"))),
         "sells_h1": int(_f((txns.get("h1") or {}).get("sells"))),
         "pair_created_at": created / 1000 if created else None,
+        "price_native": _f(pair.get("priceNative")) or None,
+        "quote_symbol": ((pair.get("quoteToken") or {}).get("symbol") or "").upper(),
+        "price_change": {k: _f(v) for k, v in (pair.get("priceChange") or {}).items()},
     }
 
 

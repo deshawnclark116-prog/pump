@@ -113,3 +113,49 @@ def test_backtest_and_tune():
     assert m["alerts"] == 5 and m["hit_rate"] == 1.0
     w, best = backtest.tune(rows, 0.45, trials=200)
     assert best["hit_rate"] == 1.0
+
+
+# ---------------------------------------------------------------- stage detector
+from memeradar import stage as stg  # noqa: E402
+
+
+def test_stage_early_when_buyers_accelerating_and_not_run_far():
+    kw = dict(price=2.0, ref_price=1.0, peak_price=2.0,
+              buyers={"m5": 40, "m15": 60}, sellers={"m5": 10, "m15": 20})
+    r = stg.classify(age_minutes=30, **kw)
+    assert r.stage == stg.EARLY and r.freshness == 1.0
+    # same numbers on a 3-day-old coin: could be a second leg, but never "early"
+    assert stg.classify(age_minutes=3 * 24 * 60, **kw).stage == stg.RUNNING
+
+
+def test_stage_late_when_already_ripped():
+    r = stg.classify(price=12.0, ref_price=1.0, peak_price=12.0,
+                     buyers={"m5": 40, "m15": 60}, sellers={"m5": 10, "m15": 20})
+    assert r.stage == stg.LATE
+
+
+def test_stage_late_when_buyers_dry_up_after_a_run():
+    r = stg.classify(price=3.0, ref_price=1.0, peak_price=3.1,
+                     buyers={"m5": 5, "m15": 65}, sellers={"m5": 4, "m15": 30})
+    assert r.stage == stg.LATE and "drying up" in r.reasons[0]
+
+
+def test_stage_dumping_off_peak_or_sell_pressure():
+    assert stg.classify(price=0.6, ref_price=0.5, peak_price=1.0, buyers=None, sellers=None).stage == stg.DUMPING
+    r = stg.classify(price=1.0, ref_price=1.0, peak_price=1.0,
+                     buyers={"m5": 6, "m15": 20}, sellers={"m5": 20, "m15": 30})
+    assert r.stage == stg.DUMPING
+
+
+def test_reference_price_counts_todays_rip_on_old_coins():
+    t = TokenState(chain="solana", address="Q", price_usd=5.0, price_change={"h6": 20.0, "h24": 400.0},
+                   pair_created_at=time.time() - 5 * 86400)
+    t.first_price = 5.0
+    assert t.reference_price() == 1.0  # up 5x today -> LATE territory even though we just found it
+
+
+def test_reference_price_uses_24h_change_for_young_coins():
+    t = TokenState(chain="solana", address="Z", price_usd=4.0, price_change={"h24": 300.0},
+                   pair_created_at=time.time() - 600)
+    t.first_price = 3.5
+    assert t.reference_price() == 1.0

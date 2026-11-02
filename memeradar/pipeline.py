@@ -10,7 +10,7 @@ import logging
 import time
 from collections import OrderedDict
 
-from . import alerts, safety, scoring
+from . import alerts, safety, scoring, stage
 from .config import Config
 from .http import Http
 from .models import TokenState
@@ -35,7 +35,8 @@ class Radar:
         self.tokens: dict[tuple[str, str], TokenState] = {}
         self.rejected: OrderedDict[tuple[str, str], float] = OrderedDict()
         self.pending_addresses: OrderedDict[str, None] = OrderedDict()
-        self.pump = PumpPortal(self._on_new_pump_token, self._on_pump_trade) if cfg.enable_pumpportal else None
+        self.pump = (PumpPortal(self._on_new_pump_token, self._on_pump_trade, cfg.pumpportal_api_key)
+                     if cfg.enable_pumpportal else None)
 
     # ------------------------------------------------------------------ intake
     def add_candidate(self, chain: str, address: str, source: str, symbol: str = "",
@@ -65,6 +66,11 @@ class Radar:
 
     async def _on_new_pump_token(self, data: dict) -> None:
         t = self.add_candidate("solana", data["mint"], "pumpportal", data.get("symbol", ""), data.get("name", ""))
+        if t:
+            try:
+                t.launch_mcap_sol = float(data.get("marketCapSol") or 0) or None
+            except (TypeError, ValueError):
+                pass
         if t and self.pump:
             await self.pump.subscribe_trades([t.address])
 
@@ -129,6 +135,9 @@ class Radar:
                 continue
             setattr(t, k, v)
         t.market_updated_at = time.time()
+        if t.price_usd:
+            t.first_price = t.first_price or t.price_usd
+            t.peak_price = max(t.peak_price or 0, t.price_usd)
         if snap.get("vol_m5"):
             t.last_activity = time.time()
 
@@ -144,7 +153,8 @@ class Radar:
                     self._apply_market(t, snap)
 
     def _passes_prefilter(self, t: TokenState) -> bool:
-        if t.vol_h1 < self.cfg.min_volume_h1_usd:
+        busy = t.vol_h1 >= self.cfg.min_volume_h1_usd or t.vol_m5 >= self.cfg.early_min_volume_m5_usd
+        if not busy:
             return False
         return t.liquidity_usd is None or t.liquidity_usd >= self.cfg.min_liquidity_usd
 
@@ -154,6 +164,7 @@ class Radar:
         await self._refresh_markets()
 
         alerted: list[TokenState] = []
+        ready: list[TokenState] = []
         safety_budget = SAFETY_CHECKS_PER_CYCLE
         for t in list(self.tokens.values()):
             if now - t.last_activity > self.cfg.track_ttl_minutes * 60:
@@ -185,12 +196,33 @@ class Radar:
                     self._drop(t.key, reject=True)
                     continue
 
+            ready.append(t)
+
+        # unique buyers/sellers for everything that made it through (30 pools per request)
+        by_chain: dict[str, list[TokenState]] = {}
+        for t in ready:
+            if t.pair_address:
+                by_chain.setdefault(t.chain, []).append(t)
+        for chain, toks in by_chain.items():
+            stats = await geckoterminal.pool_stats(self.http, chain, [t.pair_address for t in toks])
+            for t in toks:
+                st = stats.get(t.pair_address)
+                if st:
+                    t.buyers, t.sellers = st["buyers"], st["sellers"]
+
+        for t in ready:
+            t.stage = stage.classify(price=t.price_usd, ref_price=t.reference_price(), peak_price=t.peak_price,
+                                     buyers=t.buyers, sellers=t.sellers, age_minutes=t.age_minutes,
+                                     rules=self.cfg.stage)
             t.features = scoring.compute_features(t, self.mentions)
-            t.score = scoring.composite(t.features, self.cfg.weights)
+            t.momentum = scoring.composite(t.features, self.cfg.weights)
+            t.score = round(t.momentum * t.stage.freshness, 4)
+            t.features.update(stage=t.stage.stage, freshness=t.stage.freshness, momentum=t.momentum,
+                              runup=t.stage.runup, drawdown=round(t.stage.drawdown, 4))
             self.store.upsert_token(t)
             self.store.snapshot(t)
 
-            if t.score >= self.cfg.alert_threshold:
+            if t.score >= self.cfg.alert_threshold and t.stage.stage in self.cfg.alert_stages:
                 last = t.last_alert or self.store.last_alert_ts(t.chain, t.address)
                 if now - last > self.cfg.alert_cooldown_minutes * 60:
                     t.last_alert = now

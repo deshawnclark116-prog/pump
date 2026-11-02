@@ -36,7 +36,8 @@ def evaluate(rows: list[dict], weights: dict[str, float], threshold: float, win:
     """First time each token crosses `threshold` = one simulated alert."""
     fired: dict[tuple, dict] = {}
     for r in sorted(rows, key=lambda r: r["ts"]):
-        if r["token"] not in fired and composite(r["features"], weights) >= threshold:
+        score = composite(r["features"], weights) * r["features"].get("freshness", 1.0)
+        if r["token"] not in fired and score >= threshold:
             fired[r["token"]] = r
     rets = [r["fwd_max"] for r in fired.values()]
     return {"alerts": len(rets),

@@ -1,4 +1,4 @@
-"""PumpPortal free WebSocket: every new pump.fun token + live trades (with wallet addresses).
+"""PumpPortal WebSocket: every new pump.fun token (free) + live trades (needs a funded API key).
 
 Docs: https://pumpportal.fun/data-api/real-time  — one connection, subscribe/unsubscribe via JSON.
 """
@@ -18,13 +18,16 @@ OnEvent = Callable[[dict], Awaitable[None]]
 
 
 class PumpPortal:
-    def __init__(self, on_new_token: OnEvent, on_trade: OnEvent) -> None:
+    def __init__(self, on_new_token: OnEvent, on_trade: OnEvent, api_key: str = "") -> None:
+        self.api_key = api_key
         self.on_new_token = on_new_token
         self.on_trade = on_trade
         self._ws: aiohttp.ClientWebSocketResponse | None = None
         self._subscribed: set[str] = set()
 
     async def subscribe_trades(self, mints: list[str]) -> None:
+        if not self.api_key:
+            return  # trade stream is no longer free; launches still are
         mints = [m for m in mints if m not in self._subscribed]
         if mints and self._ws is not None and not self._ws.closed:
             await self._ws.send_json({"method": "subscribeTokenTrade", "keys": mints})
@@ -40,7 +43,8 @@ class PumpPortal:
         backoff = 2
         while True:
             try:
-                async with aiohttp.ClientSession() as sess, sess.ws_connect(WS_URL, heartbeat=30) as ws:
+                async with aiohttp.ClientSession() as sess, sess.ws_connect(
+                        WS_URL + (f"?api-key={self.api_key}" if self.api_key else ""), heartbeat=30) as ws:
                     self._ws = ws
                     resub = list(self._subscribed)
                     self._subscribed.clear()
