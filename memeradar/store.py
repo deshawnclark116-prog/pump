@@ -96,3 +96,11 @@ class Store:
     def max_price_since(self, chain: str, address: str, since: float) -> float | None:
         return self.db.execute("SELECT MAX(price_usd) FROM snapshots WHERE chain=? AND address=? AND ts>=?",
                                (chain, address, since)).fetchone()[0]
+
+    def prune(self, keep_days: int) -> int:
+        """Drop old score snapshots so the disk never fills up. Alerts/exits are kept forever."""
+        cur = self.db.execute("DELETE FROM snapshots WHERE ts < ?", (time.time() - keep_days * 86400,))
+        self.db.commit()
+        if cur.rowcount:
+            self.db.execute("VACUUM")
+        return cur.rowcount

@@ -281,6 +281,11 @@ class Radar:
                 self.positions.pop(key, None)
         self.store.commit()
 
+    async def housekeeping(self) -> None:
+        removed = self.store.prune(self.cfg.keep_days)
+        if removed:
+            log.info("pruned %d old snapshots", removed)
+
     # ------------------------------------------------------------------ run
     async def run(self, duration: float | None = None, dashboard: bool = False) -> None:
         cfg = self.cfg
@@ -295,6 +300,11 @@ class Radar:
             tasks.append(self.pump.run())
         tasks.append(self._every(cfg.score_interval, self.score_cycle))
         tasks.append(self._every(cfg.exits.check_interval, self.exit_cycle))
+        tasks.append(self._every(3600, self.housekeeping))
+        if not duration:  # long-running server: tell the phone it's alive
+            watching = len(self.positions)
+            tasks.append(alerts.send_text(self.http, cfg, f"✅ Meme radar started"
+                                          + (f" · still watching {watching} alerted coin(s) for exits" if watching else "")))
         if dashboard:
             from .dashboard import serve
             tasks.append(serve(self.store, cfg))

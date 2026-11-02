@@ -71,6 +71,7 @@ class Config:
 
     # storage / UI
     db_path: str = "memeradar.db"
+    keep_days: int = 14                   # delete score history older than this (alerts are kept)
     smart_wallets_file: str = "smart_wallets.txt"
     dashboard_host: str = "127.0.0.1"
     dashboard_port: int = 8080

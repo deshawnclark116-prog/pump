@@ -197,3 +197,12 @@ def test_exit_fading_warning_once():
     p, r = _pos(), ex.ExitRules()
     assert [s.title for s in ex.evaluate(p, 1.05, 20_000, "LATE", r)] == ["FADING"]
     assert ex.evaluate(p, 1.04, 20_000, "LATE", r) == []
+
+
+def test_store_prune_keeps_recent(tmp_path):
+    from memeradar.store import Store
+    s = Store(str(tmp_path / "t.db"))
+    s.db.execute("INSERT INTO snapshots (ts, chain, address, score) VALUES (?,?,?,?)", (time.time() - 30 * 86400, "c", "a", 0))
+    s.db.execute("INSERT INTO snapshots (ts, chain, address, score) VALUES (?,?,?,?)", (time.time(), "c", "b", 0))
+    assert s.prune(14) == 1
+    assert s.db.execute("SELECT COUNT(*) FROM snapshots").fetchone()[0] == 1
