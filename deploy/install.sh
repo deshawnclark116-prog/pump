@@ -10,6 +10,7 @@ REPO_URL="${REPO_URL:-https://github.com/deshawnclark116-prog/pump.git}"
 BRANCH="${BRANCH:-main}"
 DIR="${DIR:-$HOME/pump}"
 SERVICE=memeradar
+RUN_USER="${USER:-$(id -un)}"
 
 echo "==> Installing system packages"
 sudo apt-get update -qq
@@ -57,7 +58,7 @@ After=network-online.target
 Wants=network-online.target
 
 [Service]
-User=$USER
+User=$RUN_USER
 WorkingDirectory=$DIR
 EnvironmentFile=$DIR/.env
 ExecStart=$DIR/.venv/bin/python -m memeradar run
