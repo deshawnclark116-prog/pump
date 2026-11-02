@@ -21,6 +21,7 @@ alert_stages = ["EARLY"]       # add "RUNNING" for more (later, riskier) alerts
 alert_cooldown_minutes = 60
 
 db_path = "memeradar.db"
+keep_days = 14                # delete score history older than this (alerts are kept)
 dashboard_port = 8080
 
 [weights]                     # W1..W5 – run `python -m memeradar tune` to fit these to your data

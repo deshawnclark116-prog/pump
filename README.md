@@ -119,6 +119,9 @@ python -m memeradar report
 
 ## Running it 24/7 for free
 
+**Step-by-step guide: [DEPLOY.md](DEPLOY.md)**, one command on a free Oracle Cloud server.
+
+
 - **Your own PC, an old laptop or a Raspberry Pi.** This is the simplest option.
   `nohup python -m memeradar run --dashboard &`
 - **Oracle Cloud "Always Free" VM** (ARM, 4 cores, 24 GB) or **Google Cloud e2-micro** (free
