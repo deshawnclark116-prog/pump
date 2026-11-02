@@ -31,10 +31,14 @@ python3 -m venv .venv
 .venv/bin/pip install -q -r requirements.txt
 
 if [ ! -f .env ]; then
-  echo "==> Where should alerts go? (press Enter to skip any)"
-  read -r -p "Discord webhook URL: " DISCORD </dev/tty || true
-  read -r -p "Telegram bot token: " TG_TOKEN </dev/tty || true
-  read -r -p "Telegram chat id: " TG_CHAT </dev/tty || true
+  # can be passed in up front:  DISCORD_WEBHOOK_URL=... bash install.sh
+  DISCORD="${DISCORD_WEBHOOK_URL:-}"; TG_TOKEN="${TELEGRAM_BOT_TOKEN:-}"; TG_CHAT="${TELEGRAM_CHAT_ID:-}"
+  if [ -z "$DISCORD$TG_TOKEN" ] && { : </dev/tty; } 2>/dev/null; then
+    echo "==> Where should alerts go? (press Enter to skip any)"
+    read -r -p "Discord webhook URL: " DISCORD </dev/tty || true
+    read -r -p "Telegram bot token: " TG_TOKEN </dev/tty || true
+    read -r -p "Telegram chat id: " TG_CHAT </dev/tty || true
+  fi
   umask 077
   cat > .env <<ENV
 DISCORD_WEBHOOK_URL=${DISCORD}
