@@ -206,3 +206,13 @@ def test_store_prune_keeps_recent(tmp_path):
     s.db.execute("INSERT INTO snapshots (ts, chain, address, score) VALUES (?,?,?,?)", (time.time(), "c", "b", 0))
     assert s.prune(14) == 1
     assert s.db.execute("SELECT COUNT(*) FROM snapshots").fetchone()[0] == 1
+
+
+def test_rugcheck_insider_network_rejected():
+    from memeradar.config import SafetyRules
+    from memeradar.safety import evaluate_rugcheck
+    base = {"token": {"supply": 1_000_000}, "topHolders": [{"owner": "a", "pct": 5}], "markets": []}
+    ok = evaluate_rugcheck({**base, "insiderNetworks": [{"size": 4, "currentHolding": 50_000}]}, SafetyRules())
+    assert ok.passed
+    bad = evaluate_rugcheck({**base, "insiderNetworks": [{"size": 265, "currentHolding": 807_000}]}, SafetyRules())
+    assert not bad.passed and "insider group of 265 wallets holds 81%" in bad.reasons

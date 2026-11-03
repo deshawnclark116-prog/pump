@@ -51,6 +51,16 @@ def evaluate_rugcheck(report: dict, rules: SafetyRules) -> Safety:
     if top10 > rules.max_top10_pct:
         reasons.append(f"top-10 holders own {top10:.1f}%")
 
+    # hidden insider groups: many wallets funded/linked together, so top-10 looks spread out
+    # while one group really holds most of the supply (the classic "bundled" pump.fun dump)
+    supply = _num((report.get("token") or {}).get("supply"))
+    if supply > 0:
+        for net in report.get("insiderNetworks") or []:
+            held = _num(net.get("currentHolding") or net.get("tokenAmount")) / supply * 100
+            if held > rules.max_insider_pct:
+                reasons.append(f"insider group of {net.get('size')} wallets holds {held:.0f}%")
+                break
+
     # LP lock, judged on the deepest pool that actually has a fungible LP token. Exempt:
     #  - the pump.fun bonding curve ("pump_fun"; nothing to withdraw)
     #  - position-based pools (Meteora DLMM/DAMM v2, Orca whirlpools…) whose lpMint is the

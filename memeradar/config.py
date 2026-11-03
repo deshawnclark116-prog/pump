@@ -26,6 +26,7 @@ class Weights:
 class SafetyRules:
     max_top10_pct: float = 50.0          # top-10 holders (excluding pools) may own at most this %
     max_tax_pct: float = 5.0             # buy/sell tax ceiling (EVM)
+    max_insider_pct: float = 20.0        # one linked wallet group ("insider network") may hold at most this %
     min_lp_locked_pct: float = 50.0      # LP burned/locked share (ignored on bonding curves)
     reject_mint_authority: bool = True
     reject_freeze_authority: bool = True
