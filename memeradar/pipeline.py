@@ -334,11 +334,9 @@ class Radar:
                     self.http, self.cfg, exits.format_exit(pos, sig), symbol=pos.symbol,
                     address=pos.address, kind=sig.title,
                     link=alerts.chart_link(pos.chain, pos.pair_address or pos.address))
-                if sig.title == "TAKE PROFIT":
+                if sig.sell_pct > 0:
                     await self._paper_note(
-                        self.paper.take_profit(pos.chain, pos.address, pos.last_price,
-                                               self.cfg.exits.first_take_profit_sell_pct,
-                                               final=sig.level == "green"),
+                        self.paper.take_profit(pos.chain, pos.address, pos.last_price, sig.sell_pct),
                         pos.chain, pos.address, pos.symbol, pos.pair_address)
             self.store.save_position(pos)
             if pos.closed:

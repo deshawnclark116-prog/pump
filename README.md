@@ -66,12 +66,13 @@ Every alerted coin keeps being watched every 10 seconds, for up to 6 hours:
 
 | Alert | When |
 |---|---|
-| 🟠 TAKE PROFIT | **your money** up +50% after fees and slippage: **sell half**, let the rest ride. (A buy + sell costs about 6%, so the coin itself is up about 60%.) |
-| 🟢 TAKE PROFIT | **your money** up +100%: **sell the rest** (the watch ends) |
-| 🔴 FELL BACK | after selling half, your money falls back under +50%: **sell the rest** |
+| 🟠 TAKE PROFIT 1 | **your money** up +50% after fees and slippage (the coin itself is up ~60%, because a buy + sell costs ~6%): **don't sell**, your stop loss moves up to +50%, so the trade can't lose any more |
+| 🟢 TAKE PROFIT 2 | your money +100%: **sell 50%** of what you bought |
+| 🟢 TAKE PROFIT 3 | your money +200%: **sell 25% more** |
+| 🟢 TAKE PROFIT 4 | your money +300%: **sell the rest** |
 | 🟠 FADING | stage turned LATE: buyers drying up |
-| 🔴 GET OUT | before the first take-profit: 15% off its high since the alert (once it has been up 10%+) |
-| 🔴 STOP LOSS | **your money** down 20% after fees and slippage |
+| 🔴 GET OUT | before take profit 1 only: 15% off its high since the alert (once it has been up 10%+) |
+| 🔴 STOP LOSS | before take profit 1: **your money** down 20% after fees. After take profit 1: your money back down to +50%. Sells everything left |
 | 🔴 DUMPING | sellers swamping buyers |
 | 🔴 RUG WARNING | half the pool's liquidity pulled since the alert |
 
@@ -83,9 +84,8 @@ python -m memeradar report
 
 ## Fake-money trading (paper mode)
 
-Every entry alert also makes a pretend $10 buy and then follows the exit alerts above exactly: half
-sold at +50%, the rest at +100% or when it falls back under +50%, everything on a red alert before
-that. Fees (1.25% each way) and slippage (2% each way) are charged like a real trade. Your
+Every entry alert also makes a pretend $10 buy and then does exactly what the exit alerts above
+say. Fees (1.25% each way) and slippage (2% each way) are charged like a real trade. Your
 phone gets a 🤖 PAPER BUY / PAPER SELL message with the fake balance (starts at $100). No wallet,
 no real money. To see every fake trade:
 

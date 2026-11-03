@@ -171,11 +171,13 @@ def _pos():
 
 
 def test_exit_take_profit_levels_fire_once():
-    p, r = _pos(), ex.ExitRules()
-    assert [s.title for s in ex.evaluate(p, 1.6, 20_000, "RUNNING", r)] == ["TAKE PROFIT"]
+    p, r = _pos(), ex.ExitRules()                          # _pos has no fees (cost_factor 1)
+    sig = ex.evaluate(p, 1.6, 20_000, "RUNNING", r)
+    assert [x.title for x in sig] == ["TAKE PROFIT 1"] and sig[0].sell_pct == 0
     assert ex.evaluate(p, 1.7, 20_000, "RUNNING", r) == []
-    assert [s.title for s in ex.evaluate(p, 2.1, 20_000, "RUNNING", r)] == ["TAKE PROFIT"]
-    assert p.closed                                        # the last level sells the rest
+    sig = ex.evaluate(p, 2.1, 20_000, "RUNNING", r)
+    assert [x.title for x in sig] == ["TAKE PROFIT 2"] and sig[0].sell_pct == 50
+    assert not p.closed
 
 
 def test_exit_trailing_stop_after_peak():
@@ -314,9 +316,9 @@ def test_take_profit_and_stop_loss_use_your_money():
     pos = Position(chain="solana", address="a", symbol="A", pair_address="p", entry_ts=0,
                    entry_price=1.0, peak_price=1.0, cost_factor=cf)
     # coin +50% is NOT your money +50% -> no take profit yet
-    assert not [s for s in evaluate(pos, 1.5, None, None, ExitRules(), now=1) if s.title == "TAKE PROFIT"]
+    assert not [s for s in evaluate(pos, 1.5, None, None, ExitRules(), now=1) if "TAKE PROFIT" in s.title]
     sig = evaluate(pos, 1.61, None, None, ExitRules(), now=2)
-    assert sig[0].title == "TAKE PROFIT" and "your money +51%" in sig[0].detail
+    assert sig[0].title == "TAKE PROFIT 1" and "your money +51%" in sig[0].detail
     # stop loss triggers on your money: coin only -15% but your money is -20%
     pos2 = Position(chain="solana", address="b", symbol="B", pair_address="p", entry_ts=0,
                     entry_price=1.0, peak_price=1.0, cost_factor=cf)
@@ -325,37 +327,43 @@ def test_take_profit_and_stop_loss_use_your_money():
 
 
 
-def test_take_profit_half_then_rest_or_fall_back(tmp_path):
+def test_take_profit_ladder(tmp_path):
+    """TP1 (+50%) sells nothing but locks the stop at +50%; TP2 (+100%) sells 50%; TP3 (+200%)
+    sells 25% more; TP4 (+300%) sells the rest; falling back to +50% after TP1 sells everything."""
     from memeradar.exits import ExitRules, Position, evaluate
     from memeradar.paper import PaperRules, PaperTrader, cost_factor
     from memeradar.store import Store
     rules, pr = ExitRules(), PaperRules()
     cf = cost_factor(pr)
+    tr = PaperTrader(Store(str(tmp_path / "ladder.db")).db, pr)
 
-    def new_pos(addr):
-        return Position(chain="solana", address=addr, symbol=addr, pair_address="p", entry_ts=0,
-                        entry_price=1.0, peak_price=1.0, cost_factor=cf)
+    def ride(addr, prices):
+        pos = Position(chain="solana", address=addr, symbol=addr, pair_address="p", entry_ts=0,
+                       entry_price=1.0, peak_price=1.0, cost_factor=cf)
+        tr.buy("solana", addr, addr, 1.0)
+        said = []
+        for i, price in enumerate(prices):
+            for sig in evaluate(pos, price, None, None, rules, now=i + 1):
+                said.append((sig.title, sig.sell_pct))
+                if sig.sell_pct:
+                    tr.take_profit("solana", addr, price, sig.sell_pct)
+            if pos.closed:
+                tr.sell("solana", addr, price, pos.close_reason)
+                break
+        return pos, said
 
-    tr = PaperTrader(Store(str(tmp_path / "h.db")).db, pr)
-    # NALA-style: +50% -> sell half, +100% -> sell the rest
-    pos = new_pos("N")
-    tr.buy("solana", "N", "N", 1.0)
-    sig = evaluate(pos, 1.62, None, None, rules, now=1)
-    assert sig[0].level == "orange" and "sell half" in sig[0].detail and not pos.closed
-    assert "sold 50%" in tr.take_profit("solana", "N", 1.62, 50)
-    sig = evaluate(pos, 2.15, None, None, rules, now=2)
-    assert sig[0].level == "green" and "sell the rest" in sig[0].detail and pos.closed
-    msg = tr.take_profit("solana", "N", 2.15, 50, final=True)
-    assert "PAPER SELL" in msg and not tr.open_trades()
-    # $10 -> half at ~$7.6, half at ~$10.07 => ~ +$7.7
-    assert 107 < tr.cash() < 108.5
+    # moon: every level
+    pos, said = ride("MOON", [1.62, 2.2, 3.3, 4.4])
+    assert said == [("TAKE PROFIT 1", 0), ("TAKE PROFIT 2", 50), ("TAKE PROFIT 3", 25), ("TAKE PROFIT 4", 25)]
+    assert pos.closed and not tr.open_trades()
 
-    # DJT-style: +50% -> sell half, falls back under +50% -> sell the rest
-    pos = new_pos("D")
-    tr.buy("solana", "D", "D", 1.0)
-    evaluate(pos, 1.62, None, None, rules, now=1)
-    tr.take_profit("solana", "D", 1.62, 50)
-    assert evaluate(pos, 1.65, None, None, rules, now=2) == []        # still above, no trailing stop
-    sig = evaluate(pos, 1.58, None, None, rules, now=3)
-    assert sig[0].title == "FELL BACK" and pos.closed
-    assert "PAPER SELL" in tr.sell("solana", "D", 1.58, "FELL BACK")
+    # TP1, then falls back to +50% -> stop loss sells everything
+    pos, said = ride("DJT", [1.62, 1.70, 1.59])
+    assert said == [("TAKE PROFIT 1", 0), ("STOP LOSS", 0)] and pos.closed
+
+    # TP1, TP2 (sell 50%), then back to +50% -> rest sold by the stop
+    pos, said = ride("NALA", [1.62, 2.2, 1.59])
+    assert said == [("TAKE PROFIT 1", 0), ("TAKE PROFIT 2", 50), ("STOP LOSS", 0)]
+    assert not tr.open_trades()
+    wins, losses = tr.record()
+    assert (wins, losses) == (3, 0)
