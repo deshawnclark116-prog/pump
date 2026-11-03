@@ -272,7 +272,7 @@ def test_wait_before_alerting(tmp_path):
     from memeradar.models import TokenState
     from memeradar.pipeline import Radar
     from memeradar.stage import StageResult
-    cfg = Config(db_path=str(tmp_path / "w.db"), enable_pumpportal=False)
+    cfg = Config(db_path=str(tmp_path / "w.db"), enable_pumpportal=False, confirm_minutes=3.0)
     r = Radar(cfg)
 
     def tok(price, liq=20000, stage_name="EARLY", score=0.5):

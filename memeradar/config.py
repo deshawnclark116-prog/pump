@@ -68,7 +68,7 @@ class Config:
     alert_cooldown_minutes: int = 60
     # wait before alerting: a coin that qualifies is watched this long first, and only alerted if
     # it is still healthy (filters the "alert, then crash 1 minute later" coins)
-    confirm_minutes: float = 3.0
+    confirm_minutes: float = 0.0          # 0 = alert (and paper-buy) right away
     confirm_max_drop_pct: float = 15.0   # cancel if price falls this much below where it qualified
     confirm_max_liq_drop_pct: float = 20.0
     alert_stages: list[str] = field(default_factory=lambda: ["EARLY"])   # add "RUNNING" for more, riskier alerts
