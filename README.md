@@ -130,7 +130,8 @@ python -m memeradar paper
    it is still healthy (price not down 15%+, liquidity not pulled, not LATE/DUMPING, score held),
    which skips coins that crash right after qualifying but also buys later. Coins with "fake hype"
    (5-minute volume under $3 per buyer: bots spraying thousands of tiny buys to inflate the buyer
-   count) are never alerted. One alert per token per 60 minutes. Every score is stored in SQLite.
+   count), or with more than 5 buyers per seller in 5 minutes (real buying always has some
+   selling), are never alerted. One alert per token per 60 minutes. Every score is stored in SQLite.
 6. **Backtest and tune (Phase 4).**
    ```bash
    python -m memeradar backtest            # hit rate (+50% within 1h) per threshold

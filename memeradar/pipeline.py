@@ -38,6 +38,18 @@ def bot_buyers(t: TokenState, min_usd_per_buyer: float) -> str:
     return ""
 
 
+def one_sided(t: TokenState, max_ratio: float) -> str:
+    """Non-empty reason if almost nobody is selling: a sign the buying is faked or coordinated."""
+    buyers = (t.buyers or {}).get("m5", 0)
+    sellers = (t.sellers or {}).get("m5", 0)
+    if buyers < 50 or max_ratio <= 0:
+        return ""
+    ratio = buyers / max(sellers, 1)
+    if ratio > max_ratio:
+        return f"{buyers} buyers vs {sellers} sellers in 5 min ({ratio:.0f} to 1)"
+    return ""
+
+
 class Radar:
     def __init__(self, cfg: Config) -> None:
         self.cfg = cfg
@@ -286,9 +298,10 @@ class Radar:
         dropped (and not re-watched for 15 min)."""
         cfg = self.cfg
         qualifies = t.score >= cfg.alert_threshold and t.stage.stage in cfg.alert_stages
-        if qualifies and bot_buyers(t, cfg.min_usd_per_buyer):
+        fake = qualifies and (bot_buyers(t, cfg.min_usd_per_buyer) or one_sided(t, cfg.max_buyers_per_seller))
+        if fake:
             if now - t.candidate_cancelled_at > 15 * 60:
-                log.info("not alerting %s: looks like bot buyers (%s)", t.symbol, bot_buyers(t, cfg.min_usd_per_buyer))
+                log.info("not alerting %s: looks like fake hype (%s)", t.symbol, fake)
                 t.candidate_cancelled_at = now
             t.candidate_at = 0.0
             return False

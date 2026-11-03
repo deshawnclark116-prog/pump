@@ -399,3 +399,17 @@ def test_rugcheck_insider_groups_combined():
     assert evaluate_rugcheck({**base, "insiderNetworks": pog}, SafetyRules()).passed
     bad = evaluate_rugcheck({**base, "insiderNetworks": sexbot}, SafetyRules())
     assert not bad.passed and "2 insider groups (34 wallets) hold 47% combined" in bad.reasons
+
+
+def test_one_sided_buyer_filter():
+    from memeradar.models import TokenState
+    from memeradar.pipeline import one_sided
+
+    def t(b, s):
+        return TokenState(chain="solana", address="x", buyers={"m5": b}, sellers={"m5": s})
+
+    for b, s in ((810, 29), (3026, 44), (609, 119), (317, 58)):      # GTA, 5STAR, MSTRT, CHOOBOT
+        assert one_sided(t(b, s), 5.0)
+    for b, s in ((401, 305), (305, 269), (84, 22), (1193, 594)):      # STONKS, Pog, MEMECOIN, VC
+        assert one_sided(t(b, s), 5.0) == ""
+    assert one_sided(t(40, 0), 5.0) == ""                            # too few to judge

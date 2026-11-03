@@ -75,6 +75,9 @@ class Config:
     # fake-hype filter: bots spray thousands of tiny buys so the buyer count looks huge.
     # Skip coins whose last-5-min volume works out to less than this many dollars per buyer.
     min_usd_per_buyer: float = 3.0
+    # one-sided hype filter: real buying always has some selling. Skip coins with more than this
+    # many buyers per seller in the last 5 min (e.g. 810 buyers vs 29 sellers).
+    max_buyers_per_seller: float = 5.0
     alert_stages: list[str] = field(default_factory=lambda: ["EARLY"])   # add "RUNNING" for more, riskier alerts
     discord_webhook_url: str = ""
     telegram_bot_token: str = ""
