@@ -60,7 +60,10 @@ async def send(http: Http, cfg: Config, t: TokenState) -> None:
 async def send_text(http: Http, cfg: Config, text: str) -> None:
     sent = False
     if cfg.ntfy_topic:
-        await http.post(ntfy_url(cfg.ntfy_topic), data=text[:3900].encode(), retries=1)
+        # entry + red alerts buzz loudly (high priority); take-profit/fading are normal
+        prio = "high" if text.startswith(("🚀", "🔴", "✅")) else "default"
+        await http.post(ntfy_url(cfg.ntfy_topic), data=text[:3900].encode(),
+                        headers={"Priority": prio}, retries=1)
         sent = True
     if cfg.discord_webhook_url:
         await http.post(cfg.discord_webhook_url, json={"content": text[:1990]}, retries=1)
