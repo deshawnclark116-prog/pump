@@ -305,3 +305,24 @@ def test_wait_before_alerting(tmp_path):
     t.stage = StageResult("DUMPING", 1.5, 0.4, 0.5, [])
     assert not r._confirmed(t, 20200) and t.candidate_at == 0
     asyncio.run(r.http.close())
+
+
+def test_paper_take_profit_gets_stake_back(tmp_path):
+    from memeradar.paper import PaperRules, PaperTrader
+    from memeradar.store import Store
+    tr = PaperTrader(Store(str(tmp_path / "tp.db")).db, PaperRules(fee_pct=1.0, slippage_pct=0.0))
+    tr.buy("solana", "a", "AAA", 1.0)                 # 4.95 tokens for $5
+    msg = tr.take_profit("solana", "a", 1.5)          # +50%
+    assert "got back $5.50" in msg and "rides free" in msg
+    assert tr.take_profit("solana", "a", 2.0) is None  # only the first take-profit sells
+    assert abs(tr.cash() - 100.5) < 1e-6
+    tr.sell("solana", "a", 1.12, "GET OUT")            # rest sold at +12%
+    sold = 5.5 / (1.5 * 0.99)
+    expect = 5.5 + (4.95 - sold) * 1.12 * 0.99
+    assert abs(tr.cash() - (95 + expect)) < 1e-6
+    # a database from before partial sells existed gets upgraded in place
+    db = Store(str(tmp_path / "old.db")).db
+    db.execute("CREATE TABLE paper_trades (id INTEGER PRIMARY KEY AUTOINCREMENT, chain TEXT, address TEXT,"
+               " symbol TEXT, entry_ts REAL, entry_price REAL, usd_in REAL, tokens REAL, exit_ts REAL,"
+               " exit_price REAL, usd_out REAL, reason TEXT)")
+    PaperTrader(db, PaperRules()).buy("solana", "b", "B", 1.0)

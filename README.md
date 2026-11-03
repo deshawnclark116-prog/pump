@@ -81,8 +81,9 @@ python -m memeradar report
 
 ## Fake-money trading (paper mode)
 
-Every entry alert also makes a pretend $5 buy, and the first red exit alert (or the end of the 6h
-watch) sells it. Fees (1.25% each way) and slippage (2% each way) are charged like a real trade. Your
+Every entry alert also makes a pretend $5 buy. At the first take-profit alert it sells just enough
+to get back what it put in plus 10%, and the rest rides for free. The first red exit alert (or the
+end of the 6h watch) sells whatever is left. Fees (1.25% each way) and slippage (2% each way) are charged like a real trade. Your
 phone gets a 🤖 PAPER BUY / PAPER SELL message with the fake balance (starts at $100). No wallet,
 no real money. To see every fake trade:
 
