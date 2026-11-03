@@ -175,13 +175,13 @@ def test_exit_take_profit_levels_fire_once():
     assert [s.title for s in ex.evaluate(p, 1.6, 20_000, "RUNNING", r)] == ["TAKE PROFIT"]
     assert ex.evaluate(p, 1.7, 20_000, "RUNNING", r) == []
     assert [s.title for s in ex.evaluate(p, 2.1, 20_000, "RUNNING", r)] == ["TAKE PROFIT"]
-    assert not p.closed
+    assert p.closed                                        # the last level sells the rest
 
 
 def test_exit_trailing_stop_after_peak():
     p, r = _pos(), ex.ExitRules()
-    ex.evaluate(p, 1.86, 20_000, "RUNNING", r)            # the Learjet +86% peak
-    sigs = ex.evaluate(p, 1.30, 20_000, "LATE", r)        # 30% off the high
+    ex.evaluate(p, 1.40, 20_000, "RUNNING", r)            # +40%: not yet a take-profit
+    sigs = ex.evaluate(p, 1.15, 20_000, "LATE", r)        # 18% off the high
     assert sigs[0].title == "GET OUT" and p.closed
     assert ex.evaluate(p, 0.02, 0, "DUMPING", r) == []    # watch already over
 
@@ -307,27 +307,6 @@ def test_wait_before_alerting(tmp_path):
     asyncio.run(r.http.close())
 
 
-def test_paper_take_profit_gets_stake_back(tmp_path):
-    from memeradar.paper import PaperRules, PaperTrader
-    from memeradar.store import Store
-    tr = PaperTrader(Store(str(tmp_path / "tp.db")).db, PaperRules(fee_pct=1.0, slippage_pct=0.0, take_back_pct=110, trade_usd=5.0, sell_all_at_take_profit=False))
-    tr.buy("solana", "a", "AAA", 1.0)                 # 4.95 tokens for $5
-    msg = tr.take_profit("solana", "a", 1.5)          # +50%
-    assert "got back $5.50" in msg and "rides free" in msg
-    assert tr.take_profit("solana", "a", 2.0) is None  # only the first take-profit sells
-    assert abs(tr.cash() - 100.5) < 1e-6
-    tr.sell("solana", "a", 1.12, "GET OUT")            # rest sold at +12%
-    sold = 5.5 / (1.5 * 0.99)
-    expect = 5.5 + (4.95 - sold) * 1.12 * 0.99
-    assert abs(tr.cash() - (95 + expect)) < 1e-6
-    # a database from before partial sells existed gets upgraded in place
-    db = Store(str(tmp_path / "old.db")).db
-    db.execute("CREATE TABLE paper_trades (id INTEGER PRIMARY KEY AUTOINCREMENT, chain TEXT, address TEXT,"
-               " symbol TEXT, entry_ts REAL, entry_price REAL, usd_in REAL, tokens REAL, exit_ts REAL,"
-               " exit_price REAL, usd_out REAL, reason TEXT)")
-    PaperTrader(db, PaperRules()).buy("solana", "b", "B", 1.0)
-
-
 def test_take_profit_and_stop_loss_use_your_money():
     from memeradar.exits import ExitRules, Position, evaluate
     from memeradar.paper import PaperRules, cost_factor
@@ -345,11 +324,38 @@ def test_take_profit_and_stop_loss_use_your_money():
     assert sig[0].title == "STOP LOSS" and "coin -15%" in sig[0].detail
 
 
-def test_paper_take_profit_sells_all_by_default(tmp_path):
-    from memeradar.paper import PaperRules, PaperTrader
+
+def test_take_profit_half_then_rest_or_fall_back(tmp_path):
+    from memeradar.exits import ExitRules, Position, evaluate
+    from memeradar.paper import PaperRules, PaperTrader, cost_factor
     from memeradar.store import Store
-    tr = PaperTrader(Store(str(tmp_path / "all.db")).db, PaperRules())
-    tr.buy("solana", "a", "AAA", 1.0)
-    msg = tr.take_profit("solana", "a", 1.6)
-    assert "PAPER SELL $AAA (TAKE PROFIT)" in msg and not tr.open_trades()
-    assert 14.9 < tr.cash() - 90 < 15.1          # ~$15 back on $10
+    rules, pr = ExitRules(), PaperRules()
+    cf = cost_factor(pr)
+
+    def new_pos(addr):
+        return Position(chain="solana", address=addr, symbol=addr, pair_address="p", entry_ts=0,
+                        entry_price=1.0, peak_price=1.0, cost_factor=cf)
+
+    tr = PaperTrader(Store(str(tmp_path / "h.db")).db, pr)
+    # NALA-style: +50% -> sell half, +100% -> sell the rest
+    pos = new_pos("N")
+    tr.buy("solana", "N", "N", 1.0)
+    sig = evaluate(pos, 1.62, None, None, rules, now=1)
+    assert sig[0].level == "orange" and "sell half" in sig[0].detail and not pos.closed
+    assert "sold 50%" in tr.take_profit("solana", "N", 1.62, 50)
+    sig = evaluate(pos, 2.15, None, None, rules, now=2)
+    assert sig[0].level == "green" and "sell the rest" in sig[0].detail and pos.closed
+    msg = tr.take_profit("solana", "N", 2.15, 50, final=True)
+    assert "PAPER SELL" in msg and not tr.open_trades()
+    # $10 -> half at ~$7.6, half at ~$10.07 => ~ +$7.7
+    assert 107 < tr.cash() < 108.5
+
+    # DJT-style: +50% -> sell half, falls back under +50% -> sell the rest
+    pos = new_pos("D")
+    tr.buy("solana", "D", "D", 1.0)
+    evaluate(pos, 1.62, None, None, rules, now=1)
+    tr.take_profit("solana", "D", 1.62, 50)
+    assert evaluate(pos, 1.65, None, None, rules, now=2) == []        # still above, no trailing stop
+    sig = evaluate(pos, 1.58, None, None, rules, now=3)
+    assert sig[0].title == "FELL BACK" and pos.closed
+    assert "PAPER SELL" in tr.sell("solana", "D", 1.58, "FELL BACK")

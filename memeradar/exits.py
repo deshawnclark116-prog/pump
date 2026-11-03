@@ -1,6 +1,8 @@
 """Exit alerts: once a coin has been alerted, keep watching it and say when to get out.
 
-  🟠 TAKE PROFIT   YOUR MONEY up +50% / +100% / +200% (after buy/sell fees and slippage)
+  🟠 TAKE PROFIT   YOUR MONEY up +50% (after fees): sell HALF, let the rest ride
+  🟢 TAKE PROFIT   YOUR MONEY up +100%: sell THE REST (ends the watch)
+  🔴 FELL BACK     after the first take-profit, your money fell back under +50%: sell the rest
   🟠 FADING        the coin's stage turned LATE (buyers drying up / well off its high)
   🔴 GET OUT       dropped 15% from its high since the alert (trailing stop)
   🔴 STOP LOSS     YOUR MONEY down 20% (after fees and slippage)
@@ -19,7 +21,8 @@ from .stage import DUMPING, LATE
 
 @dataclass
 class ExitRules:
-    take_profit_levels: list[float] = field(default_factory=lambda: [50.0, 100.0, 200.0])  # % gain on YOUR money
+    take_profit_levels: list[float] = field(default_factory=lambda: [50.0, 100.0])  # % gain on YOUR money
+    first_take_profit_sell_pct: float = 50.0   # share sold at the first level; the last level sells the rest
     trailing_stop_pct: float = 15.0     # % drop from the high since the alert
     trailing_arm_pct: float = 10.0      # trailing stop only arms once it's been up this much
     stop_loss_pct: float = 20.0         # % of YOUR money lost (after fees), not just the coin price
@@ -86,7 +89,11 @@ def evaluate(pos: Position, price: float | None, liquidity: float | None, stage:
         close("RUG WARNING", f"pool liquidity down {100 - liquidity / pos.entry_liquidity * 100:.0f}% since alert")
     elif money <= -rules.stop_loss_pct:
         close("STOP LOSS", f"your money {money:+.0f}% after fees (coin {chg:+.0f}%)")
-    elif peak_chg >= rules.trailing_arm_pct and off_high >= rules.trailing_stop_pct:
+    elif pos.tp_hit and money < pos.tp_hit[0]:
+        # after taking half at the first take-profit, never let the rest fall back below that level
+        close("FELL BACK", f"your money back under +{pos.tp_hit[0]:.0f}% after taking half: sell the rest "
+                           f"(now {money:+.0f}%)")
+    elif not pos.tp_hit and peak_chg >= rules.trailing_arm_pct and off_high >= rules.trailing_stop_pct:
         close("GET OUT", f"{off_high:.0f}% off its high (high was {peak_chg:+.0f}%)")
     elif stage == DUMPING:
         close("DUMPING", "sellers swamping buyers / falling hard")
@@ -94,11 +101,19 @@ def evaluate(pos: Position, price: float | None, liquidity: float | None, stage:
         return out
 
     # --- orange: take profit / warning
-    for lvl in rules.take_profit_levels:
+    levels = sorted(rules.take_profit_levels)
+    for lvl in levels:
         if money >= lvl and lvl not in pos.tp_hit:
             pos.tp_hit.append(lvl)
-            out.append(ExitSignal("orange", "TAKE PROFIT",
-                                  f"your money {money:+.0f}% after fees (coin {chg:+.0f}%), passed +{lvl:.0f}%"))
+            gain = f"your money {money:+.0f}% after fees (coin {chg:+.0f}%)"
+            if lvl == levels[-1]:
+                pos.closed, pos.close_reason = True, "TAKE PROFIT"
+                out.append(ExitSignal("green", "TAKE PROFIT", f"{gain} → sell the rest"))
+                return out
+            what = "sell half" if len(pos.tp_hit) == 1 else "keep riding"
+            if len(pos.tp_hit) == 1 and rules.first_take_profit_sell_pct != 50:
+                what = f"sell {rules.first_take_profit_sell_pct:.0f}%"
+            out.append(ExitSignal("orange", "TAKE PROFIT", f"{gain} → {what}, let the rest ride"))
     if stage == LATE and not pos.faded_sent:
         pos.faded_sent = True
         out.append(ExitSignal("orange", "FADING", "buyers drying up / move looks tired"))
@@ -110,7 +125,7 @@ def evaluate(pos: Position, price: float | None, liquidity: float | None, stage:
 
 
 def format_exit(pos: Position, sig: ExitSignal) -> str:
-    icon = {"red": "🔴", "orange": "🟠"}.get(sig.level, "⚪")
+    icon = {"red": "🔴", "orange": "🟠", "green": "🟢"}.get(sig.level, "⚪")
     price = pos.last_price or pos.entry_price
     mins = (time.time() - pos.entry_ts) / 60
     return (f"{icon} {sig.title}: ${pos.symbol}\n{sig.detail}\n"

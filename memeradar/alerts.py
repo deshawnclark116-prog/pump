@@ -75,7 +75,8 @@ async def send_text(http: Http, cfg: Config, text: str, *, symbol: str | None = 
     sent = False
     if cfg.ntfy_topic:
         # entry + red alerts buzz loudly (high priority); take-profit/fading are normal
-        prio = "high" if text.startswith(("🚀", "🔴", "✅")) else "default"
+        first = text.split("\n", 1)[0]
+        prio = "high" if text.startswith(("🚀", "🔴", "🟢", "✅")) or "TAKE PROFIT:" in first else "default"
         headers = {"Priority": prio}
         if address:
             title = f"{kind} ${_ascii(symbol or '?')} - address ends ...{address[-8:]}".strip()

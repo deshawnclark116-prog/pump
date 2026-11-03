@@ -1,9 +1,9 @@
 """Fake-money trading ("paper trading").
 
-Every entry alert buys a fixed dollar amount with pretend money. The first take-profit alert
-(your money +50% after fees) sells it all; if the coin never gets there, the first red exit alert
-(or the end of the watch) sells it. Optionally (`sell_all_at_take_profit = false`) it sells only
-enough at the take-profit to get back `take_back_pct` of the stake and lets the rest ride. Fees and slippage are charged the way a real pump.fun /
+Every entry alert buys a fixed dollar amount with pretend money. It follows the exit alerts:
+your money +50% after fees sells half, +100% sells the rest, and if it falls back under +50% after
+the first sale the rest is sold. Before the first take-profit, the first red exit alert (or the
+end of the watch) sells everything. Fees and slippage are charged the way a real pump.fun /
 PumpPortal trade would charge them, so the fake balance shows what the strategy would really
 have earned. Nothing here touches a wallet or sends a transaction.
 """
@@ -21,8 +21,6 @@ class PaperRules:
     fee_pct: float = 1.25           # per buy and per sell (trading-service + pump.fun fees, estimate)
     slippage_pct: float = 2.0       # you buy a bit higher / sell a bit lower than the quoted price
     max_open: int = 5               # never hold more than this many coins at once
-    sell_all_at_take_profit: bool = True   # first take-profit sells everything (a tiny leftover isn't worth riding)
-    take_back_pct: float = 130.0    # only if sell_all_at_take_profit = false: sell enough to get back this %
 
 
 def cost_factor(r: "PaperRules") -> float:
@@ -92,29 +90,28 @@ class PaperTrader:
         return (f"🤖 PAPER BUY ${symbol}: ${r.trade_usd:.2f} (fake money)\n"
                 f"cash left ${self.cash():.2f} · holding {len(self.open_trades())} coin(s)")
 
-    def take_profit(self, chain: str, address: str, price: float | None) -> str | None:
-        """First take-profit only: sell enough to get back take_back_pct of the stake."""
+    def take_profit(self, chain: str, address: str, price: float | None, sell_pct: float,
+                    final: bool = False) -> str | None:
+        """First take-profit: sell `sell_pct`% of the coins. Final take-profit: sell the rest."""
         r = self.rules
         row = self.db.execute("SELECT * FROM paper_trades WHERE chain=? AND address=? AND exit_ts IS NULL",
                               (chain, address)).fetchone()
-        if not row or row["tokens_sold"] or not price:
+        if not row or not price:
             return None
-        if r.sell_all_at_take_profit:
+        if final:
             return self.sell(chain, address, price, "TAKE PROFIT")
-        per_token = price * (1 - r.slippage_pct / 100) * (1 - r.fee_pct / 100)   # cash per token sold
-        want = row["usd_in"] * r.take_back_pct / 100
-        sell_tokens = min(row["tokens"], want / per_token)
+        if row["tokens_sold"]:
+            return None
+        per_token = price * (1 - r.slippage_pct / 100) * (1 - r.fee_pct / 100)   # cash per coin sold
+        sell_tokens = row["tokens"] * min(sell_pct, 100) / 100
         got = sell_tokens * per_token
         self.db.execute("UPDATE paper_trades SET tokens_sold=?, usd_partial=? WHERE id=?",
                         (sell_tokens, got, row["id"]))
         self.db.commit()
-        share = sell_tokens / row["tokens"] * 100
-        left = 100 - share
-        if left < 0.5:
-            return (f"🤖 PAPER TAKE PROFIT ${row['symbol']}: sold it all, got back ${got:.2f} "
-                    f"(put in ${row['usd_in']:.2f}). Not up enough yet to keep a free ride.")
-        return (f"🤖 PAPER TAKE PROFIT ${row['symbol']}: sold {share:.0f}%, got back ${got:.2f} "
-                f"(put in ${row['usd_in']:.2f})\nthe other {left:.0f}% rides free until the 🔴 alert")
+        left_value = (row["tokens"] - sell_tokens) * per_token
+        return (f"🤖 PAPER TAKE PROFIT ${row['symbol']}: sold {sell_pct:.0f}%, got ${got:.2f} "
+                f"(put in ${row['usd_in']:.2f})\nthe other {100 - sell_pct:.0f}% (worth ${left_value:.2f}) rides "
+                f"until your money is +100%, or sells if it falls back under +50%")
 
     def sell(self, chain: str, address: str, price: float | None, reason: str,
              now: float | None = None) -> str | None:

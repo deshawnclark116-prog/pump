@@ -66,9 +66,11 @@ Every alerted coin keeps being watched every 10 seconds, for up to 6 hours:
 
 | Alert | When |
 |---|---|
-| 🟠 TAKE PROFIT | **your money** up +50%, +100%, +200% after fees and slippage (each once). The coin's price has to rise about 6% more than that, because a buy + sell costs about 6% |
+| 🟠 TAKE PROFIT | **your money** up +50% after fees and slippage: **sell half**, let the rest ride. (A buy + sell costs about 6%, so the coin itself is up about 60%.) |
+| 🟢 TAKE PROFIT | **your money** up +100%: **sell the rest** (the watch ends) |
+| 🔴 FELL BACK | after selling half, your money falls back under +50%: **sell the rest** |
 | 🟠 FADING | stage turned LATE: buyers drying up |
-| 🔴 GET OUT | 15% off its high since the alert (once it has been up 10%+) |
+| 🔴 GET OUT | before the first take-profit: 15% off its high since the alert (once it has been up 10%+) |
 | 🔴 STOP LOSS | **your money** down 20% after fees and slippage |
 | 🔴 DUMPING | sellers swamping buyers |
 | 🔴 RUG WARNING | half the pool's liquidity pulled since the alert |
@@ -81,9 +83,9 @@ python -m memeradar report
 
 ## Fake-money trading (paper mode)
 
-Every entry alert also makes a pretend $10 buy. When **your money** is up 50% after fees (the first
-take-profit alert) it sells everything, so a win is about $15 back on $10. If it never gets there,
-the first red exit alert (or the end of the 6h watch) sells it. Fees (1.25% each way) and slippage (2% each way) are charged like a real trade. Your
+Every entry alert also makes a pretend $10 buy and then follows the exit alerts above exactly: half
+sold at +50%, the rest at +100% or when it falls back under +50%, everything on a red alert before
+that. Fees (1.25% each way) and slippage (2% each way) are charged like a real trade. Your
 phone gets a 🤖 PAPER BUY / PAPER SELL message with the fake balance (starts at $100). No wallet,
 no real money. To see every fake trade:
 

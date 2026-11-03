@@ -335,8 +335,11 @@ class Radar:
                     address=pos.address, kind=sig.title,
                     link=alerts.chart_link(pos.chain, pos.pair_address or pos.address))
                 if sig.title == "TAKE PROFIT":
-                    await self._paper_note(self.paper.take_profit(pos.chain, pos.address, pos.last_price),
-                                           pos.chain, pos.address, pos.symbol, pos.pair_address)
+                    await self._paper_note(
+                        self.paper.take_profit(pos.chain, pos.address, pos.last_price,
+                                               self.cfg.exits.first_take_profit_sell_pct,
+                                               final=sig.level == "green"),
+                        pos.chain, pos.address, pos.symbol, pos.pair_address)
             self.store.save_position(pos)
             if pos.closed:
                 self.positions.pop(key, None)
