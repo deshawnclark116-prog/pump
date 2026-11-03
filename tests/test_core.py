@@ -246,7 +246,7 @@ def test_new_pool_on_old_coin_is_not_early():
 def test_paper_trading_round_trip(tmp_path):
     from memeradar.paper import PaperRules, PaperTrader
     from memeradar.store import Store
-    trader = PaperTrader(Store(str(tmp_path / "p.db")).db, PaperRules(fee_pct=1.0, slippage_pct=0.0))
+    trader = PaperTrader(Store(str(tmp_path / "p.db")).db, PaperRules(fee_pct=1.0, slippage_pct=0.0, trade_usd=5.0))
     assert "PAPER BUY $AAA" in trader.buy("solana", "a", "AAA", 1.0)
     assert trader.buy("solana", "a", "AAA", 1.0) is None          # already holding
     assert abs(trader.cash() - 95.0) < 1e-9
@@ -310,7 +310,7 @@ def test_wait_before_alerting(tmp_path):
 def test_paper_take_profit_gets_stake_back(tmp_path):
     from memeradar.paper import PaperRules, PaperTrader
     from memeradar.store import Store
-    tr = PaperTrader(Store(str(tmp_path / "tp.db")).db, PaperRules(fee_pct=1.0, slippage_pct=0.0, take_back_pct=110))
+    tr = PaperTrader(Store(str(tmp_path / "tp.db")).db, PaperRules(fee_pct=1.0, slippage_pct=0.0, take_back_pct=110, trade_usd=5.0))
     tr.buy("solana", "a", "AAA", 1.0)                 # 4.95 tokens for $5
     msg = tr.take_profit("solana", "a", 1.5)          # +50%
     assert "got back $5.50" in msg and "rides free" in msg
