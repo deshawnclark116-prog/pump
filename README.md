@@ -68,8 +68,8 @@ Every alerted coin keeps being watched every 10 seconds, for up to 6 hours:
 |---|---|
 | 🟠 TAKE PROFIT | up +50%, +100%, +200% since the alert (each once) |
 | 🟠 FADING | stage turned LATE: buyers drying up |
-| 🔴 GET OUT | 25% off its high since the alert (once it has been up 10%+) |
-| 🔴 STOP LOSS | 30% below the alert price |
+| 🔴 GET OUT | 15% off its high since the alert (once it has been up 10%+) |
+| 🔴 STOP LOSS | 20% below the alert price |
 | 🔴 DUMPING | sellers swamping buyers |
 | 🔴 RUG WARNING | half the pool's liquidity pulled since the alert |
 
@@ -82,7 +82,7 @@ python -m memeradar report
 ## Fake-money trading (paper mode)
 
 Every entry alert also makes a pretend $5 buy. At the first take-profit alert it sells just enough
-to get back what it put in plus 10%, and the rest rides for free. The first red exit alert (or the
+to get back 130% of what it put in ($6.50 of $5), and the rest rides for free. The first red exit alert (or the
 end of the 6h watch) sells whatever is left. Fees (1.25% each way) and slippage (2% each way) are charged like a real trade. Your
 phone gets a 🤖 PAPER BUY / PAPER SELL message with the fake balance (starts at $100). No wallet,
 no real money. To see every fake trade:

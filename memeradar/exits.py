@@ -2,8 +2,8 @@
 
   🟠 TAKE PROFIT   up +50% / +100% / +200% since the alert (each level once)
   🟠 FADING        the coin's stage turned LATE (buyers drying up / well off its high)
-  🔴 GET OUT       dropped 25% from its high since the alert (trailing stop)
-  🔴 STOP LOSS     down 30% from the alert price
+  🔴 GET OUT       dropped 15% from its high since the alert (trailing stop)
+  🔴 STOP LOSS     down 20% from the alert price
   🔴 DUMPING       stage turned DUMPING (sellers swamping buyers)
   🔴 RUG WARNING   pool liquidity fell by half or more – money is being pulled out
 
@@ -20,9 +20,9 @@ from .stage import DUMPING, LATE
 @dataclass
 class ExitRules:
     take_profit_levels: list[float] = field(default_factory=lambda: [50.0, 100.0, 200.0])  # % gain
-    trailing_stop_pct: float = 25.0     # % drop from the high since the alert
+    trailing_stop_pct: float = 15.0     # % drop from the high since the alert
     trailing_arm_pct: float = 10.0      # trailing stop only arms once it's been up this much
-    stop_loss_pct: float = 30.0         # % below the alert price
+    stop_loss_pct: float = 20.0         # % below the alert price
     liquidity_drop_pct: float = 50.0    # % of pool liquidity gone since the alert
     max_watch_hours: float = 6.0
     check_interval: int = 10            # seconds between exit checks (DexScreener only, cheap)

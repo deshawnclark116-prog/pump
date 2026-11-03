@@ -20,7 +20,7 @@ class PaperRules:
     fee_pct: float = 1.25           # per buy and per sell (trading-service + pump.fun fees, estimate)
     slippage_pct: float = 2.0       # you buy a bit higher / sell a bit lower than the quoted price
     max_open: int = 5               # never hold more than this many coins at once
-    take_back_pct: float = 110.0    # at the first take-profit, sell enough to get back this % of the stake
+    take_back_pct: float = 130.0    # at the first take-profit, sell enough to get back this % of the stake
 
 
 SCHEMA = """

@@ -310,7 +310,7 @@ def test_wait_before_alerting(tmp_path):
 def test_paper_take_profit_gets_stake_back(tmp_path):
     from memeradar.paper import PaperRules, PaperTrader
     from memeradar.store import Store
-    tr = PaperTrader(Store(str(tmp_path / "tp.db")).db, PaperRules(fee_pct=1.0, slippage_pct=0.0))
+    tr = PaperTrader(Store(str(tmp_path / "tp.db")).db, PaperRules(fee_pct=1.0, slippage_pct=0.0, take_back_pct=110))
     tr.buy("solana", "a", "AAA", 1.0)                 # 4.95 tokens for $5
     msg = tr.take_profit("solana", "a", 1.5)          # +50%
     assert "got back $5.50" in msg and "rides free" in msg

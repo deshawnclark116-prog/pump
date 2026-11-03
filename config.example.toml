@@ -56,9 +56,9 @@ sell_pressure = 1.3           # sellers > 1.3x buyers in last 5 min -> DUMPING
 
 [exits]                       # exit alerts for coins that were alerted
 take_profit_levels = [50.0, 100.0, 200.0]   # 🟠 "take profit" at these % gains
-trailing_stop_pct = 25.0      # 🔴 "get out" when it falls this % from its high since the alert...
+trailing_stop_pct = 15.0      # 🔴 "get out" when it falls this % from its high since the alert...
 trailing_arm_pct = 10.0       #    ...once it has been up at least this %
-stop_loss_pct = 30.0          # 🔴 "stop loss" this % below the alert price
+stop_loss_pct = 20.0          # 🔴 "stop loss" this % below the alert price
 liquidity_drop_pct = 50.0     # 🔴 "rug warning" when half the pool's money is pulled
 max_watch_hours = 6.0
 check_interval = 10           # seconds between exit checks
@@ -70,4 +70,4 @@ trade_usd = 5.0               # pretend amount spent per coin
 fee_pct = 1.25                # per buy and per sell (estimate of real trading fees)
 slippage_pct = 2.0            # buy a bit above / sell a bit below the quoted price
 max_open = 5                  # most coins held at once
-take_back_pct = 110.0         # first take-profit: sell enough to get back 110% of what was put in
+take_back_pct = 130.0         # first take-profit: sell enough to get back 130% of what was put in ($6.50 of $5)
