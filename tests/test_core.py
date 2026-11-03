@@ -361,8 +361,8 @@ def test_take_profit_ladder(tmp_path):
     pos, said = ride("DJT", [1.62, 1.70, 1.59])
     assert said == [("TAKE PROFIT 1", 0), ("STOP LOSS", 0)] and pos.closed
 
-    # TP1, TP2 (sell 50%), then back to +50% -> rest sold by the stop
-    pos, said = ride("NALA", [1.62, 2.2, 1.59])
+    # TP1, TP2 (sell 50%), then back under +100% -> the stop (moved up to +100%) sells the rest
+    pos, said = ride("NALA", [1.62, 2.2, 2.3, 2.1])
     assert said == [("TAKE PROFIT 1", 0), ("TAKE PROFIT 2", 50), ("STOP LOSS", 0)]
     assert not tr.open_trades()
     wins, losses = tr.record()

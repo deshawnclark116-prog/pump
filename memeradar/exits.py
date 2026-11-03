@@ -6,7 +6,8 @@ Take profits are measured on YOUR MONEY after buy/sell fees and slippage, not th
   🟢 TAKE PROFIT 2  +100%: sell 50%
   🟢 TAKE PROFIT 3  +200%: sell 25% more
   🟢 TAKE PROFIT 4  +300%: sell the last 25%
-  🔴 STOP LOSS      after take profit 1: your money fell back to +50%, sell everything left
+  🔴 STOP LOSS      after a take profit, your money fell back to that take profit's level
+                    (the stop moves up with each one: +50%, then +100%, then +200%): sell everything left
 
   🟠 FADING        the coin's stage turned LATE (buyers drying up / well off its high)
   🔴 GET OUT       dropped 15% from its high since the alert (trailing stop)
@@ -92,7 +93,7 @@ def evaluate(pos: Position, price: float | None, liquidity: float | None, stage:
         out.append(ExitSignal("red", title, detail))
 
     # --- red: get out (first match wins, then the watch ends)
-    locked = pos.tp_hit[0] if pos.tp_hit else None     # stop loss moved up by take profit 1
+    locked = max(pos.tp_hit) if pos.tp_hit else None   # each take profit moves the stop up to its level
     if pos.entry_liquidity and liquidity is not None and \
             liquidity <= pos.entry_liquidity * (1 - rules.liquidity_drop_pct / 100):
         close("RUG WARNING", f"pool liquidity down {100 - liquidity / pos.entry_liquidity * 100:.0f}% since alert")
@@ -132,7 +133,7 @@ def evaluate(pos: Position, price: float | None, liquidity: float | None, stage:
             return out
         out.append(ExitSignal("green", f"TAKE PROFIT {n + 1}",
                               f"{gain} → sell {sell:.0f}% of what you bought "
-                              f"({100 - pos.sold_pct:.0f}% left riding, stop at +{pos.tp_hit[0]:.0f}%)", sell))
+                              f"({100 - pos.sold_pct:.0f}% left riding, stop moves up to +{lvl:.0f}%)", sell))
     if stage == LATE and not pos.faded_sent:
         pos.faded_sent = True
         out.append(ExitSignal("orange", "FADING", "buyers drying up / move looks tired"))

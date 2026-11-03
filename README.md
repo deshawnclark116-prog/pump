@@ -72,7 +72,7 @@ Every alerted coin keeps being watched every 10 seconds, for up to 6 hours:
 | 🟢 TAKE PROFIT 4 | your money +300%: **sell the rest** |
 | 🟠 FADING | stage turned LATE: buyers drying up |
 | 🔴 GET OUT | before take profit 1 only: 15% off its high since the alert (once it has been up 10%+) |
-| 🔴 STOP LOSS | before take profit 1: **your money** down 20% after fees. After take profit 1: your money back down to +50%. Sells everything left |
+| 🔴 STOP LOSS | before take profit 1: **your money** down 20% after fees. After a take profit, the stop moves up to that level (+50%, then +100%, then +200%): your money falling back to it sells everything left |
 | 🔴 DUMPING | sellers swamping buyers |
 | 🔴 RUG WARNING | half the pool's liquidity pulled since the alert |
 
