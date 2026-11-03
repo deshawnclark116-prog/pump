@@ -68,6 +68,7 @@ class Config:
     discord_webhook_url: str = ""
     telegram_bot_token: str = ""
     telegram_chat_id: str = ""
+    ntfy_topic: str = ""                  # ntfy app topic name (or full https://server/topic URL)
 
     # storage / UI
     db_path: str = "memeradar.db"
@@ -88,6 +89,7 @@ ENV_MAP = {
     "DISCORD_WEBHOOK_URL": "discord_webhook_url",
     "TELEGRAM_BOT_TOKEN": "telegram_bot_token",
     "TELEGRAM_CHAT_ID": "telegram_chat_id",
+    "NTFY_TOPIC": "ntfy_topic",
     "MEMERADAR_DB": "db_path",
     "PUMPPORTAL_API_KEY": "pumpportal_api_key",
 }

@@ -21,7 +21,7 @@ paid APIs and no API keys, only one Python dependency (`aiohttp`), and runs as a
 | Redis rolling windows | Redis | in-memory `RollingEvents` deques |
 | Postgres / ClickHouse | managed DB | **SQLite** file |
 | Grafana / Next.js | hosted UI | built-in dashboard at `http://127.0.0.1:8080` |
-| Alerts | n/a | **Discord webhook** and/or **Telegram bot**, both free |
+| Alerts | n/a | **ntfy** phone app (no account), **Discord webhook** and/or **Telegram bot**, all free |
 
 ## Quick start
 
@@ -34,6 +34,7 @@ python -m memeradar run --dashboard               # open http://127.0.0.1:8080
 Alerts go to the console until you add a free alert channel:
 
 ```bash
+export NTFY_TOPIC="my-secret-topic"                                  # ntfy app → + → subscribe to that name
 export DISCORD_WEBHOOK_URL="https://discord.com/api/webhooks/..."   # Server settings → Integrations → Webhooks
 export TELEGRAM_BOT_TOKEN="123:abc"  TELEGRAM_CHAT_ID="-100..."       # @BotFather, then add the bot to a channel
 ```
@@ -127,11 +128,9 @@ python -m memeradar report
 - **Oracle Cloud "Always Free" VM** (ARM, 4 cores, 24 GB) or **Google Cloud e2-micro** (free
   tier). Both are always on and keep the PumpPortal stream connected. Run it under
   `systemd` or `tmux`.
-- **GitHub Actions** (`.github/workflows/radar.yml`). Each run lasts about 13 minutes, and the
-  database is kept in the Actions cache between runs. Public repos get unlimited minutes. Private
-  repos get 2,000 minutes a month, which is roughly 150 runs. Add your webhook secrets, then
-  uncomment the `schedule` block. Because this mode isn't continuous, it misses some very early
-  pump.fun moves.
+- **GitHub Actions** (`.github/workflows/radar.yml`). Add the `NTFY_TOPIC` secret and it runs by
+  itself: ~6h runs back to back, database kept in the Actions cache. Free and unlimited for public
+  repos (private repos only get 2,000 min/month, not enough for 24/7).
 
 ## Known limits of the free stack
 

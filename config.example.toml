@@ -1,5 +1,5 @@
 # Copy to config.toml and edit. Every key is optional; defaults shown.
-# Secrets are better passed as env vars: DISCORD_WEBHOOK_URL, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
+# Secrets are better passed as env vars: NTFY_TOPIC, DISCORD_WEBHOOK_URL, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
 
 chains = ["solana", "base", "ethereum"]
 enable_pumpportal = true      # pump.fun new tokens + live trades (Solana only)

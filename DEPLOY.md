@@ -12,6 +12,10 @@ Takes about 20 minutes, one time.
 
 ## Step 1: Set up phone alerts (pick one)
 
+**ntfy (easiest, no account)**
+1. Install the **ntfy** app (App Store / Google Play).
+2. Tap **+** and make up a topic name nobody would guess. That name is your `NTFY_TOPIC`.
+
 **Discord (easiest)**
 1. Make a Discord server (the **+** button), or use one you own.
 2. Open Server Settings → Integrations → Webhooks → New Webhook → **Copy Webhook URL**.
@@ -61,7 +65,7 @@ curl -fsSL https://raw.githubusercontent.com/deshawnclark116-prog/pump/main/depl
 > curl -fsSL https://raw.githubusercontent.com/deshawnclark116-prog/pump/ccr-bbdb2d78-8yqlgn/deploy/install.sh | BRANCH=ccr-bbdb2d78-8yqlgn bash
 > ```
 
-It asks for your Discord link or Telegram token and chat id. Paste them in, or press Enter to skip.
+It asks for your ntfy topic, Discord link, or Telegram token and chat id. Paste them in, or press Enter to skip.
 
 When it finishes, your phone gets **"✅ Meme radar started"**. That's it. You can close the window.
 
@@ -88,6 +92,11 @@ Run these on the server (connect again as in Step 3):
   You should see a `cycle: tracking … tokens` line every 20 seconds.
 
 ## Other free options
+
+- **GitHub (2 minutes, no server).** On github.com open the repo → **Settings → Secrets and variables →
+  Actions → New repository secret**, name `NTFY_TOPIC`, value your ntfy topic. The `radar` workflow then
+  runs by itself around the clock (runs of ~6h back to back). Watch it in the **Actions** tab. GitHub
+  pauses the timer after 60 days with no commits; press **Enable workflow** there to restart it.
 
 - **Google Cloud free tier:** one `e2-micro` server (in `us-west1`, `us-central1` or `us-east1`)
   is free each month. Pick Ubuntu, then do Steps 3–4 the same way.
