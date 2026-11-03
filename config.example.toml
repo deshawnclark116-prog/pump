@@ -66,8 +66,8 @@ check_interval = 10           # seconds between exit checks
 [paper]                       # fake-money trading: buys on every entry alert, sells on the first red exit
 enabled = true
 start_balance_usd = 100.0
-trade_usd = 5.0               # pretend amount spent per coin
+trade_usd = 10.0              # pretend amount spent per coin
 fee_pct = 1.25                # per buy and per sell (estimate of real trading fees)
 slippage_pct = 2.0            # buy a bit above / sell a bit below the quoted price
 max_open = 5                  # most coins held at once
-take_back_pct = 130.0         # first take-profit: sell enough to get back 130% of what was put in ($6.50 of $5)
+take_back_pct = 130.0         # first take-profit: sell enough to get back 130% of what was put in ($13 of $10)

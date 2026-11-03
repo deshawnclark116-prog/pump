@@ -16,7 +16,7 @@ from dataclasses import dataclass
 class PaperRules:
     enabled: bool = True
     start_balance_usd: float = 100.0
-    trade_usd: float = 5.0          # spent on every entry alert
+    trade_usd: float = 10.0         # spent on every entry alert
     fee_pct: float = 1.25           # per buy and per sell (trading-service + pump.fun fees, estimate)
     slippage_pct: float = 2.0       # you buy a bit higher / sell a bit lower than the quoted price
     max_open: int = 5               # never hold more than this many coins at once
