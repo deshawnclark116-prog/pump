@@ -326,3 +326,20 @@ def test_paper_take_profit_gets_stake_back(tmp_path):
                " symbol TEXT, entry_ts REAL, entry_price REAL, usd_in REAL, tokens REAL, exit_ts REAL,"
                " exit_price REAL, usd_out REAL, reason TEXT)")
     PaperTrader(db, PaperRules()).buy("solana", "b", "B", 1.0)
+
+
+def test_take_profit_and_stop_loss_use_your_money():
+    from memeradar.exits import ExitRules, Position, evaluate
+    from memeradar.paper import PaperRules, cost_factor
+    cf = cost_factor(PaperRules())                      # ~0.937: a round trip costs ~6%
+    pos = Position(chain="solana", address="a", symbol="A", pair_address="p", entry_ts=0,
+                   entry_price=1.0, peak_price=1.0, cost_factor=cf)
+    # coin +50% is NOT your money +50% -> no take profit yet
+    assert not [s for s in evaluate(pos, 1.5, None, None, ExitRules(), now=1) if s.title == "TAKE PROFIT"]
+    sig = evaluate(pos, 1.61, None, None, ExitRules(), now=2)
+    assert sig[0].title == "TAKE PROFIT" and "your money +51%" in sig[0].detail
+    # stop loss triggers on your money: coin only -15% but your money is -20%
+    pos2 = Position(chain="solana", address="b", symbol="B", pair_address="p", entry_ts=0,
+                    entry_price=1.0, peak_price=1.0, cost_factor=cf)
+    sig = evaluate(pos2, 0.85, None, None, ExitRules(), now=1)
+    assert sig[0].title == "STOP LOSS" and "coin -15%" in sig[0].detail

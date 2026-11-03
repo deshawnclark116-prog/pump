@@ -66,10 +66,10 @@ Every alerted coin keeps being watched every 10 seconds, for up to 6 hours:
 
 | Alert | When |
 |---|---|
-| 🟠 TAKE PROFIT | up +50%, +100%, +200% since the alert (each once) |
+| 🟠 TAKE PROFIT | **your money** up +50%, +100%, +200% after fees and slippage (each once). The coin's price has to rise about 6% more than that, because a buy + sell costs about 6% |
 | 🟠 FADING | stage turned LATE: buyers drying up |
 | 🔴 GET OUT | 15% off its high since the alert (once it has been up 10%+) |
-| 🔴 STOP LOSS | 20% below the alert price |
+| 🔴 STOP LOSS | **your money** down 20% after fees and slippage |
 | 🔴 DUMPING | sellers swamping buyers |
 | 🔴 RUG WARNING | half the pool's liquidity pulled since the alert |
 

@@ -23,6 +23,11 @@ class PaperRules:
     take_back_pct: float = 130.0    # at the first take-profit, sell enough to get back this % of the stake
 
 
+def cost_factor(r: "PaperRules") -> float:
+    """Share of the money a full buy+sell round trip keeps (fees both ways + slippage both ways)."""
+    return (1 - r.fee_pct / 100) ** 2 * (1 - r.slippage_pct / 100) / (1 + r.slippage_pct / 100)
+
+
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS paper_trades (
     id INTEGER PRIMARY KEY AUTOINCREMENT, chain TEXT, address TEXT, symbol TEXT,

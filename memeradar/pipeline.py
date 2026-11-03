@@ -11,7 +11,7 @@ import time
 from collections import OrderedDict
 
 from . import alerts, exits, safety, scoring, stage
-from .paper import PaperTrader
+from .paper import PaperTrader, cost_factor
 from .config import Config
 from .http import Http
 from .models import TokenState
@@ -39,6 +39,7 @@ class Radar:
         self.positions: dict[tuple[str, str], exits.Position] = {}
         self.paper = PaperTrader(self.store.db, cfg.paper)
         for raw in self.store.load_positions():
+            raw.setdefault("cost_factor", cost_factor(cfg.paper))   # saved before money-based exits
             pos = exits.Position(**raw)
             self.positions[(pos.chain, pos.address)] = pos
         self.pump = (PumpPortal(self._on_new_pump_token, self._on_pump_trade, cfg.pumpportal_api_key)
@@ -255,7 +256,7 @@ class Radar:
                         pos = exits.Position(chain=t.chain, address=t.address, symbol=t.symbol,
                                              pair_address=t.pair_address, entry_ts=now,
                                              entry_price=t.price_usd, entry_liquidity=t.liquidity_usd,
-                                             peak_price=t.price_usd)
+                                             peak_price=t.price_usd, cost_factor=cost_factor(self.cfg.paper))
                         self.positions[t.key] = pos
                         self.store.save_position(pos)
                         await self._paper_note(self.paper.buy(t.chain, t.address, t.symbol, t.price_usd),

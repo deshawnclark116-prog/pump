@@ -1,9 +1,9 @@
 """Exit alerts: once a coin has been alerted, keep watching it and say when to get out.
 
-  🟠 TAKE PROFIT   up +50% / +100% / +200% since the alert (each level once)
+  🟠 TAKE PROFIT   YOUR MONEY up +50% / +100% / +200% (after buy/sell fees and slippage)
   🟠 FADING        the coin's stage turned LATE (buyers drying up / well off its high)
   🔴 GET OUT       dropped 15% from its high since the alert (trailing stop)
-  🔴 STOP LOSS     down 20% from the alert price
+  🔴 STOP LOSS     YOUR MONEY down 20% (after fees and slippage)
   🔴 DUMPING       stage turned DUMPING (sellers swamping buyers)
   🔴 RUG WARNING   pool liquidity fell by half or more – money is being pulled out
 
@@ -19,10 +19,10 @@ from .stage import DUMPING, LATE
 
 @dataclass
 class ExitRules:
-    take_profit_levels: list[float] = field(default_factory=lambda: [50.0, 100.0, 200.0])  # % gain
+    take_profit_levels: list[float] = field(default_factory=lambda: [50.0, 100.0, 200.0])  # % gain on YOUR money
     trailing_stop_pct: float = 15.0     # % drop from the high since the alert
     trailing_arm_pct: float = 10.0      # trailing stop only arms once it's been up this much
-    stop_loss_pct: float = 20.0         # % below the alert price
+    stop_loss_pct: float = 20.0         # % of YOUR money lost (after fees), not just the coin price
     liquidity_drop_pct: float = 50.0    # % of pool liquidity gone since the alert
     max_watch_hours: float = 6.0
     check_interval: int = 10            # seconds between exit checks (DexScreener only, cheap)
@@ -44,8 +44,15 @@ class Position:
     close_reason: str = ""
     last_price: float | None = None
 
+    cost_factor: float = 1.0   # what a round trip keeps after fees + slippage (0.94 = 6% lost)
+
     def change(self, price: float) -> float:
+        """Coin price change since the alert."""
         return (price / self.entry_price - 1) * 100
+
+    def money_change(self, price: float) -> float:
+        """What happened to YOUR money if you bought at the alert and sold now, after fees."""
+        return (price / self.entry_price * self.cost_factor - 1) * 100
 
 
 @dataclass
@@ -64,6 +71,7 @@ def evaluate(pos: Position, price: float | None, liquidity: float | None, stage:
     pos.last_price = price
     pos.peak_price = max(pos.peak_price or pos.entry_price, price)
     chg = pos.change(price)
+    money = pos.money_change(price)
     peak_chg = pos.change(pos.peak_price)
     off_high = (1 - price / pos.peak_price) * 100
     out: list[ExitSignal] = []
@@ -76,8 +84,8 @@ def evaluate(pos: Position, price: float | None, liquidity: float | None, stage:
     if pos.entry_liquidity and liquidity is not None and \
             liquidity <= pos.entry_liquidity * (1 - rules.liquidity_drop_pct / 100):
         close("RUG WARNING", f"pool liquidity down {100 - liquidity / pos.entry_liquidity * 100:.0f}% since alert")
-    elif chg <= -rules.stop_loss_pct:
-        close("STOP LOSS", f"{chg:+.0f}% from alert price")
+    elif money <= -rules.stop_loss_pct:
+        close("STOP LOSS", f"your money {money:+.0f}% after fees (coin {chg:+.0f}%)")
     elif peak_chg >= rules.trailing_arm_pct and off_high >= rules.trailing_stop_pct:
         close("GET OUT", f"{off_high:.0f}% off its high (high was {peak_chg:+.0f}%)")
     elif stage == DUMPING:
@@ -87,9 +95,10 @@ def evaluate(pos: Position, price: float | None, liquidity: float | None, stage:
 
     # --- orange: take profit / warning
     for lvl in rules.take_profit_levels:
-        if chg >= lvl and lvl not in pos.tp_hit:
+        if money >= lvl and lvl not in pos.tp_hit:
             pos.tp_hit.append(lvl)
-            out.append(ExitSignal("orange", "TAKE PROFIT", f"up {chg:+.0f}% since alert (passed +{lvl:.0f}%)"))
+            out.append(ExitSignal("orange", "TAKE PROFIT",
+                                  f"your money {money:+.0f}% after fees (coin {chg:+.0f}%), passed +{lvl:.0f}%"))
     if stage == LATE and not pos.faded_sent:
         pos.faded_sent = True
         out.append(ExitSignal("orange", "FADING", "buyers drying up / move looks tired"))
@@ -105,7 +114,8 @@ def format_exit(pos: Position, sig: ExitSignal) -> str:
     price = pos.last_price or pos.entry_price
     mins = (time.time() - pos.entry_ts) / 60
     return (f"{icon} {sig.title}: ${pos.symbol}\n{sig.detail}\n"
-            f"now {pos.change(price):+.0f}% · best {pos.change(pos.peak_price):+.0f}% · "
+            f"your money {pos.money_change(price):+.0f}% · coin {pos.change(price):+.0f}% "
+            f"(best {pos.change(pos.peak_price):+.0f}%) · "
             f"{mins:.0f} min since alert\n"
             f"{pos.address}\n"
             f"https://dexscreener.com/{pos.chain}/{pos.pair_address or pos.address}")
