@@ -49,7 +49,7 @@ built only from its own data:
 
 | Stage | Meaning | Alerts? |
 |---|---|---|
-| 🟢 **EARLY** | Under 4h old, under 3x from launch, new buyers arriving at least 1.3x faster than the 10 min before, more buyers than sellers | yes |
+| 🟢 **EARLY** | Under 4h old, under 2x from launch, new buyers arriving at least 1.3x faster than the 10 min before, more buyers than sellers | yes |
 | 🟡 **RUNNING** | Moving and still bought, but already up, or an older coin | dashboard only (add `"RUNNING"` to `alert_stages` to change that) |
 | 🔴 **LATE** | 8x or more already, 20%+ off its peak, or new buyers drying up after a 2x+ run | no |
 | 🔴 **DUMPING** | 35%+ off its peak, or sellers clearly outnumber buyers | no |

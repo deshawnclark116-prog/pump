@@ -120,10 +120,12 @@ from memeradar import stage as stg  # noqa: E402
 
 
 def test_stage_early_when_buyers_accelerating_and_not_run_far():
-    kw = dict(price=2.0, ref_price=1.0, peak_price=2.0,
+    kw = dict(price=1.8, ref_price=1.0, peak_price=1.8,
               buyers={"m5": 40, "m15": 60}, sellers={"m5": 10, "m15": 20})
     r = stg.classify(age_minutes=30, **kw)
     assert r.stage == stg.EARLY and r.freshness == 1.0
+    # already doubled: no longer early (losers were bought at 2.2x-2.9x)
+    assert stg.classify(age_minutes=30, **{**kw, "price": 2.2, "peak_price": 2.2}).stage == stg.RUNNING
     # same numbers on a 3-day-old coin: could be a second leg, but never "early"
     assert stg.classify(age_minutes=3 * 24 * 60, **kw).stage == stg.RUNNING
 

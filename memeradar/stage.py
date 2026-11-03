@@ -18,7 +18,7 @@ FRESHNESS = {EARLY: 1.0, RUNNING: 0.75, UNKNOWN: 0.6, LATE: 0.3, DUMPING: 0.0}
 
 @dataclass
 class StageRules:
-    early_max_runup: float = 3.0       # EARLY only if price is < 3x where we/launch first saw it
+    early_max_runup: float = 2.0       # EARLY only if price is < 2x where we/launch first saw it
     late_runup: float = 8.0            # >= 8x already -> LATE
     dump_drawdown: float = 0.35        # >= 35% below the peak we saw -> DUMPING
     late_drawdown: float = 0.20        # >= 20% below peak -> at best LATE

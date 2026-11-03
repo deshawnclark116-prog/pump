@@ -47,7 +47,7 @@ reject_freeze_authority = true
 allow_unverified = false
 
 [stage]                       # EARLY / RUNNING / LATE / DUMPING detector
-early_max_runup = 3.0         # EARLY only while price is under 3x its launch / 24h-ago level
+early_max_runup = 2.0         # EARLY only while price is under 2x its launch / 24h-ago level
 late_runup = 8.0              # 8x or more -> LATE
 dump_drawdown = 0.35          # 35% below the peak we saw -> DUMPING
 late_drawdown = 0.20          # 20% below peak -> LATE
