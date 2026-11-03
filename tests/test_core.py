@@ -388,3 +388,14 @@ def test_first_take_profit_is_plus_20_by_default():
     sig = evaluate(pos, 1.30, None, None, ExitRules(), now=2)             # money ~+22%
     assert sig[0].title == "TAKE PROFIT 1" and "+20%" in sig[0].detail and sig[0].sell_pct == 0
     assert evaluate(pos, 1.27, None, None, ExitRules(), now=3)[0].title == "STOP LOSS"   # back under +20%
+
+
+def test_rugcheck_insider_groups_combined():
+    from memeradar.config import SafetyRules
+    from memeradar.safety import evaluate_rugcheck
+    base = {"token": {"supply": 1_000_000}, "topHolders": [{"owner": "a", "pct": 5}], "markets": []}
+    pog = [{"size": 30, "currentHolding": 60_000}, {"size": 16, "currentHolding": 170_000}]     # 23%
+    sexbot = [{"size": 20, "currentHolding": 200_000}, {"size": 14, "currentHolding": 270_000}]  # 47%
+    assert evaluate_rugcheck({**base, "insiderNetworks": pog}, SafetyRules()).passed
+    bad = evaluate_rugcheck({**base, "insiderNetworks": sexbot}, SafetyRules())
+    assert not bad.passed and "2 insider groups (34 wallets) hold 47% combined" in bad.reasons

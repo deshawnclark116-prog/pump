@@ -35,7 +35,7 @@ class ExitRules:
     stop_loss_pct: float = 20.0         # % of YOUR money lost (after fees), not just the coin price
     liquidity_drop_pct: float = 50.0    # % of pool liquidity gone since the alert
     max_watch_hours: float = 6.0
-    check_interval: int = 10            # seconds between exit checks (DexScreener only, cheap)
+    check_interval: int = 3             # seconds between exit checks (DexScreener only, cheap)
 
 
 @dataclass

@@ -55,11 +55,16 @@ def evaluate_rugcheck(report: dict, rules: SafetyRules) -> Safety:
     # while one group really holds most of the supply (the classic "bundled" pump.fun dump)
     supply = _num((report.get("token") or {}).get("supply"))
     if supply > 0:
-        for net in report.get("insiderNetworks") or []:
-            held = _num(net.get("currentHolding") or net.get("tokenAmount")) / supply * 100
-            if held > rules.max_insider_pct:
-                reasons.append(f"insider group of {net.get('size')} wallets holds {held:.0f}%")
+        nets = report.get("insiderNetworks") or []
+        held = [_num(n.get("currentHolding") or n.get("tokenAmount")) / supply * 100 for n in nets]
+        for net, pct in zip(nets, held):
+            if pct > rules.max_insider_pct:
+                reasons.append(f"insider group of {net.get('size')} wallets holds {pct:.0f}%")
                 break
+        # several smaller groups can add up to the same thing
+        if sum(held) > rules.max_insider_total_pct and not any(p > rules.max_insider_pct for p in held):
+            wallets = sum(int(_num(n.get("size"))) for n in nets)
+            reasons.append(f"{len(nets)} insider groups ({wallets} wallets) hold {sum(held):.0f}% combined")
 
     # LP lock, judged on the deepest pool that actually has a fungible LP token. Exempt:
     #  - the pump.fun bonding curve ("pump_fun"; nothing to withdraw)

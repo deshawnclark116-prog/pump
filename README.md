@@ -62,7 +62,7 @@ thresholds are in the `[stage]` section of `config.example.toml`.
 
 ## Exit alerts
 
-Every alerted coin keeps being watched every 10 seconds, for up to 6 hours:
+Every alerted coin keeps being watched every 3 seconds, for up to 6 hours:
 
 | Alert | When |
 |---|---|
@@ -104,8 +104,9 @@ python -m memeradar paper
 3. **Shield (safety).** A token is rejected if any of these is true:
    - mint or freeze authority is still enabled
    - top-10 holders (pools and AMMs excluded) own more than 50%
-   - one hidden group of linked wallets (RugCheck "insider network") holds more than 40%, the
-     "bundled" trick where hundreds of wallets make the top-10 look spread out
+   - one hidden group of linked wallets (RugCheck "insider network") holds more than 40%, or all
+     such groups together hold more than 30%: the "bundled" trick where hundreds of wallets make
+     the top-10 look spread out
    - tax or transfer fee is above 5%
    - it is a honeypot or has owner-controlled balances
    - less than 50% of the LP is locked or burned (bonding curves and position-based pools such
