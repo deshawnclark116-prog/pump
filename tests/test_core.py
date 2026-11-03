@@ -171,7 +171,7 @@ def _pos():
 
 
 def test_exit_take_profit_levels_fire_once():
-    p, r = _pos(), ex.ExitRules()                          # _pos has no fees (cost_factor 1)
+    p, r = _pos(), ex.ExitRules(take_profit_levels=[50.0, 100.0, 200.0, 300.0])                          # _pos has no fees (cost_factor 1)
     sig = ex.evaluate(p, 1.6, 20_000, "RUNNING", r)
     assert [x.title for x in sig] == ["TAKE PROFIT 1"] and sig[0].sell_pct == 0
     assert ex.evaluate(p, 1.7, 20_000, "RUNNING", r) == []
@@ -181,7 +181,7 @@ def test_exit_take_profit_levels_fire_once():
 
 
 def test_exit_trailing_stop_after_peak():
-    p, r = _pos(), ex.ExitRules()
+    p, r = _pos(), ex.ExitRules(take_profit_levels=[50.0, 100.0, 200.0, 300.0])
     ex.evaluate(p, 1.40, 20_000, "RUNNING", r)            # +40%: not yet a take-profit
     sigs = ex.evaluate(p, 1.15, 20_000, "LATE", r)        # 18% off the high
     assert sigs[0].title == "GET OUT" and p.closed
@@ -316,13 +316,13 @@ def test_take_profit_and_stop_loss_use_your_money():
     pos = Position(chain="solana", address="a", symbol="A", pair_address="p", entry_ts=0,
                    entry_price=1.0, peak_price=1.0, cost_factor=cf)
     # coin +50% is NOT your money +50% -> no take profit yet
-    assert not [s for s in evaluate(pos, 1.5, None, None, ExitRules(), now=1) if "TAKE PROFIT" in s.title]
-    sig = evaluate(pos, 1.61, None, None, ExitRules(), now=2)
+    assert not [s for s in evaluate(pos, 1.5, None, None, ExitRules(take_profit_levels=[50.0, 100.0, 200.0, 300.0]), now=1) if "TAKE PROFIT" in s.title]
+    sig = evaluate(pos, 1.61, None, None, ExitRules(take_profit_levels=[50.0, 100.0, 200.0, 300.0]), now=2)
     assert sig[0].title == "TAKE PROFIT 1" and "your money +51%" in sig[0].detail
     # stop loss triggers on your money: coin only -15% but your money is -20%
     pos2 = Position(chain="solana", address="b", symbol="B", pair_address="p", entry_ts=0,
                     entry_price=1.0, peak_price=1.0, cost_factor=cf)
-    sig = evaluate(pos2, 0.85, None, None, ExitRules(), now=1)
+    sig = evaluate(pos2, 0.85, None, None, ExitRules(take_profit_levels=[50.0, 100.0, 200.0, 300.0]), now=1)
     assert sig[0].title == "STOP LOSS" and "coin -15%" in sig[0].detail
 
 
@@ -333,7 +333,7 @@ def test_take_profit_ladder(tmp_path):
     from memeradar.exits import ExitRules, Position, evaluate
     from memeradar.paper import PaperRules, PaperTrader, cost_factor
     from memeradar.store import Store
-    rules, pr = ExitRules(), PaperRules()
+    rules, pr = ExitRules(take_profit_levels=[50.0, 100.0, 200.0, 300.0]), PaperRules()
     cf = cost_factor(pr)
     tr = PaperTrader(Store(str(tmp_path / "ladder.db")).db, pr)
 
@@ -377,3 +377,14 @@ def test_bot_buyer_filter():
     for vol, b in ((107_500, 401), (53_000, 1071), (23_200, 159), (76_700, 1574), (29_200, 1193)):
         assert bot_buyers(TokenState(chain="solana", address="y", vol_m5=vol, buyers={"m5": b}), 3.0) == ""
     assert bot_buyers(TokenState(chain="solana", address="z", vol_m5=10, buyers={"m5": 20}), 3.0) == ""  # too few to judge
+
+
+def test_first_take_profit_is_plus_20_by_default():
+    from memeradar.exits import ExitRules, Position, evaluate
+    from memeradar.paper import PaperRules, cost_factor
+    pos = Position(chain="solana", address="a", symbol="A", pair_address="p", entry_ts=0,
+                   entry_price=1.0, peak_price=1.0, cost_factor=cost_factor(PaperRules()))
+    assert evaluate(pos, 1.25, None, None, ExitRules(), now=1) == []      # coin +25% = money ~+17%
+    sig = evaluate(pos, 1.30, None, None, ExitRules(), now=2)             # money ~+22%
+    assert sig[0].title == "TAKE PROFIT 1" and "+20%" in sig[0].detail and sig[0].sell_pct == 0
+    assert evaluate(pos, 1.27, None, None, ExitRules(), now=3)[0].title == "STOP LOSS"   # back under +20%
