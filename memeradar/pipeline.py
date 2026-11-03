@@ -27,6 +27,17 @@ PREFILTER_GRACE = 20 * 60      # drop tokens that never reach the volume bar wit
 REDDIT_LOOKUPS_PER_CYCLE = 5
 
 
+def bot_buyers(t: TokenState, min_usd_per_buyer: float) -> str:
+    """Non-empty reason if the 5-min buyer count is mostly bots making tiny buys (fake hype)."""
+    buyers = (t.buyers or {}).get("m5", 0)
+    if buyers < 50 or min_usd_per_buyer <= 0:
+        return ""
+    per_buyer = (t.vol_m5 or 0) / buyers
+    if per_buyer < min_usd_per_buyer:
+        return f"{buyers} buyers but only ${t.vol_m5 or 0:,.0f} traded in 5 min = ${per_buyer:.2f} each"
+    return ""
+
+
 class Radar:
     def __init__(self, cfg: Config) -> None:
         self.cfg = cfg
@@ -272,6 +283,12 @@ class Radar:
         dropped (and not re-watched for 15 min)."""
         cfg = self.cfg
         qualifies = t.score >= cfg.alert_threshold and t.stage.stage in cfg.alert_stages
+        if qualifies and bot_buyers(t, cfg.min_usd_per_buyer):
+            if now - t.candidate_cancelled_at > 15 * 60:
+                log.info("not alerting %s: looks like bot buyers (%s)", t.symbol, bot_buyers(t, cfg.min_usd_per_buyer))
+                t.candidate_cancelled_at = now
+            t.candidate_at = 0.0
+            return False
         if not t.candidate_at:
             if not qualifies or now - t.candidate_cancelled_at < 15 * 60:
                 return False

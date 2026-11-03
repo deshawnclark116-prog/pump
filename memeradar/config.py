@@ -71,6 +71,9 @@ class Config:
     confirm_minutes: float = 0.0          # 0 = alert (and paper-buy) right away
     confirm_max_drop_pct: float = 15.0   # cancel if price falls this much below where it qualified
     confirm_max_liq_drop_pct: float = 20.0
+    # fake-hype filter: bots spray thousands of tiny buys so the buyer count looks huge.
+    # Skip coins whose last-5-min volume works out to less than this many dollars per buyer.
+    min_usd_per_buyer: float = 3.0
     alert_stages: list[str] = field(default_factory=lambda: ["EARLY"])   # add "RUNNING" for more, riskier alerts
     discord_webhook_url: str = ""
     telegram_bot_token: str = ""

@@ -367,3 +367,13 @@ def test_take_profit_ladder(tmp_path):
     assert not tr.open_trades()
     wins, losses = tr.record()
     assert (wins, losses) == (3, 0)
+
+
+def test_bot_buyer_filter():
+    from memeradar.models import TokenState
+    from memeradar.pipeline import bot_buyers
+    five_star = TokenState(chain="solana", address="x", vol_m5=1200, buyers={"m5": 3026})
+    assert "$0.40 each" in bot_buyers(five_star, 3.0)
+    for vol, b in ((107_500, 401), (53_000, 1071), (23_200, 159), (76_700, 1574), (29_200, 1193)):
+        assert bot_buyers(TokenState(chain="solana", address="y", vol_m5=vol, buyers={"m5": b}), 3.0) == ""
+    assert bot_buyers(TokenState(chain="solana", address="z", vol_m5=10, buyers={"m5": 20}), 3.0) == ""  # too few to judge

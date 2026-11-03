@@ -22,6 +22,7 @@ alert_cooldown_minutes = 60
 confirm_minutes = 0.0          # watch a qualifying coin this long before alerting (0 = alert right away)
 confirm_max_drop_pct = 15.0    # ...and skip it if the price falls this much meanwhile
 confirm_max_liq_drop_pct = 20.0
+min_usd_per_buyer = 3.0       # skip "fake hype": 5-min volume under $3 per buyer means bots spraying tiny buys
 
 db_path = "memeradar.db"
 keep_days = 14                # delete score history older than this (alerts are kept)
