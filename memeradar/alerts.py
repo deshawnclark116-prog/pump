@@ -53,17 +53,40 @@ def ntfy_url(topic: str) -> str:
     return topic if topic.startswith(("http://", "https://")) else f"https://ntfy.sh/{topic}"
 
 
+def chart_link(chain: str, pair_or_address: str) -> str:
+    return f"https://dexscreener.com/{chain}/{pair_or_address}"
+
+
+def _ascii(s: str) -> str:
+    return s.encode("ascii", "ignore").decode().strip()
+
+
 async def send(http: Http, cfg: Config, t: TokenState) -> None:
-    await send_text(http, cfg, format_alert(t))
+    await send_text(http, cfg, format_alert(t), symbol=t.symbol, address=t.address,
+                    link=chart_link(t.chain, t.pair_address or t.address), kind="NEW")
 
 
-async def send_text(http: Http, cfg: Config, text: str) -> None:
+async def send_text(http: Http, cfg: Config, text: str, *, symbol: str | None = None,
+                    address: str | None = None, link: str | None = None, kind: str = "") -> None:
+    """symbol/address/link make the phone notification easy to act on: the title shows the
+    exact coin (ticker + end of its contract address), tapping opens its chart, and there is a
+    one-tap "Copy address" button to paste into any trading app's search."""
     sent = False
     if cfg.ntfy_topic:
         # entry + red alerts buzz loudly (high priority); take-profit/fading are normal
         prio = "high" if text.startswith(("🚀", "🔴", "✅")) else "default"
+        headers = {"Priority": prio}
+        if address:
+            title = f"{kind} ${_ascii(symbol or '?')} - address ends ...{address[-8:]}".strip()
+            headers["Title"] = title[:200]
+            actions = [f"copy, Copy address, {address}"]
+            if link:
+                actions.append(f"view, Open chart, {link}")
+            headers["Actions"] = "; ".join(actions)
+        if link:
+            headers["Click"] = link
         await http.post(ntfy_url(cfg.ntfy_topic), data=text[:3900].encode(),
-                        headers={"Priority": prio}, retries=1)
+                        headers=headers, retries=1)
         sent = True
     if cfg.discord_webhook_url:
         await http.post(cfg.discord_webhook_url, json={"content": text[:1990]}, retries=1)

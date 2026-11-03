@@ -107,4 +107,5 @@ def format_exit(pos: Position, sig: ExitSignal) -> str:
     return (f"{icon} {sig.title}: ${pos.symbol}\n{sig.detail}\n"
             f"now {pos.change(price):+.0f}% · best {pos.change(pos.peak_price):+.0f}% · "
             f"{mins:.0f} min since alert\n"
+            f"{pos.address}\n"
             f"https://dexscreener.com/{pos.chain}/{pos.pair_address or pos.address}")

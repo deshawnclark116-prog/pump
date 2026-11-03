@@ -275,7 +275,10 @@ class Radar:
                                       self.cfg.exits):
                 log.info("EXIT %s %s: %s", pos.symbol, sig.title, sig.detail)
                 self.store.exit_event(pos, sig)
-                await alerts.send_text(self.http, self.cfg, exits.format_exit(pos, sig))
+                await alerts.send_text(
+                    self.http, self.cfg, exits.format_exit(pos, sig), symbol=pos.symbol,
+                    address=pos.address, kind=sig.title,
+                    link=alerts.chart_link(pos.chain, pos.pair_address or pos.address))
             self.store.save_position(pos)
             if pos.closed:
                 self.positions.pop(key, None)
