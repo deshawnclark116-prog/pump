@@ -90,7 +90,7 @@ python -m memeradar report
 3. **Shield (safety).** A token is rejected if any of these is true:
    - mint or freeze authority is still enabled
    - top-10 holders (pools and AMMs excluded) own more than 50%
-   - one hidden group of linked wallets (RugCheck "insider network") holds more than 20%, the
+   - one hidden group of linked wallets (RugCheck "insider network") holds more than 40%, the
      "bundled" trick where hundreds of wallets make the top-10 look spread out
    - tax or transfer fee is above 5%
    - it is a honeypot or has owner-controlled balances
