@@ -121,8 +121,10 @@ python -m memeradar paper
    - `smart_money`: off by default (weight 0).
 
    Then the stage multiplier is applied (see above).
-5. **Alerts and dashboard.** An **EARLY** token that scores at least `alert_threshold` (0.40) triggers a
-   Discord/Telegram message, with a 60-minute cooldown per token. Every score is stored in SQLite.
+5. **Alerts and dashboard.** An **EARLY** token that scores at least `alert_threshold` (0.40) is
+   first **watched for 3 minutes**. It is alerted only if it is still healthy: price not down 15%+,
+   liquidity not pulled, not LATE/DUMPING, score held. This skips the coins that crash right after
+   qualifying. One alert per token per 60 minutes. Every score is stored in SQLite.
 6. **Backtest and tune (Phase 4).**
    ```bash
    python -m memeradar backtest            # hit rate (+50% within 1h) per threshold

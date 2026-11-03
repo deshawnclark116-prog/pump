@@ -244,7 +244,7 @@ class Radar:
             self.store.upsert_token(t)
             self.store.snapshot(t)
 
-            if t.score >= self.cfg.alert_threshold and t.stage.stage in self.cfg.alert_stages:
+            if self._confirmed(t, now):
                 last = t.last_alert or self.store.last_alert_ts(t.chain, t.address)
                 if now - last > self.cfg.alert_cooldown_minutes * 60:
                     t.last_alert = now
@@ -264,6 +264,44 @@ class Radar:
         log.info("cycle: tracking %d tokens, %d scored, %d alerts", len(self.tokens),
                  sum(1 for t in self.tokens.values() if t.features), len(alerted))
         return alerted
+
+    def _confirmed(self, t: TokenState, now: float) -> bool:
+        """Wait-before-alerting. Returns True once a coin has qualified AND stayed healthy for
+        `confirm_minutes`. Coins that crash, lose liquidity or turn LATE/DUMPING meanwhile are
+        dropped (and not re-watched for 15 min)."""
+        cfg = self.cfg
+        qualifies = t.score >= cfg.alert_threshold and t.stage.stage in cfg.alert_stages
+        if not t.candidate_at:
+            if not qualifies or now - t.candidate_cancelled_at < 15 * 60:
+                return False
+            if cfg.confirm_minutes <= 0:
+                t.confirm_note = ""
+                return True
+            t.candidate_at, t.candidate_price, t.candidate_liq = now, t.price_usd, t.liquidity_usd
+            log.info("watching %s for %.0f min before alerting", t.symbol, cfg.confirm_minutes)
+            return False
+
+        def cancel(why: str) -> bool:
+            log.info("not alerting %s: %s", t.symbol, why)
+            t.candidate_at, t.candidate_cancelled_at = 0.0, now
+            return False
+
+        change = (t.price_usd / t.candidate_price - 1) * 100 if t.price_usd and t.candidate_price else 0.0
+        if change <= -cfg.confirm_max_drop_pct:
+            return cancel(f"fell {change:.0f}% while waiting")
+        if t.candidate_liq and t.liquidity_usd is not None and \
+                t.liquidity_usd < t.candidate_liq * (1 - cfg.confirm_max_liq_drop_pct / 100):
+            return cancel("liquidity pulled while waiting")
+        if t.stage.stage in (stage.LATE, stage.DUMPING):
+            return cancel(f"turned {t.stage.stage} while waiting")
+        waited = (now - t.candidate_at) / 60
+        if waited < cfg.confirm_minutes:
+            return False
+        if t.score < cfg.alert_threshold * 0.85:
+            return cancel(f"score faded to {t.score:.2f}")
+        t.candidate_at = 0.0
+        t.confirm_note = f"⏱ watched {waited:.0f} min first: price {change:+.0f}% since it qualified, still healthy"
+        return True
 
     # ------------------------------------------------------------------ exits
     async def exit_cycle(self) -> None:

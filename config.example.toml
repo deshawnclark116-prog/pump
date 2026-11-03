@@ -19,6 +19,9 @@ early_min_volume_m5_usd = 3000   # fast lane: a burst in the last 5 min gets che
 alert_threshold = 0.40
 alert_stages = ["EARLY"]       # add "RUNNING" for more (later, riskier) alerts
 alert_cooldown_minutes = 60
+confirm_minutes = 3.0          # watch a qualifying coin this long before alerting
+confirm_max_drop_pct = 15.0    # ...and skip it if the price falls this much meanwhile
+confirm_max_liq_drop_pct = 20.0
 
 db_path = "memeradar.db"
 keep_days = 14                # delete score history older than this (alerts are kept)

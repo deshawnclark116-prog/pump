@@ -94,6 +94,12 @@ class TokenState:
     score: float = 0.0
     features: dict[str, float] = field(default_factory=dict)
     last_alert: float = 0.0
+    # "wait before alerting": when it first qualified, and the price/liquidity at that moment
+    candidate_at: float = 0.0
+    candidate_price: float | None = None
+    candidate_liq: float | None = None
+    candidate_cancelled_at: float = 0.0
+    confirm_note: str = ""
 
     @property
     def key(self) -> tuple[str, str]:

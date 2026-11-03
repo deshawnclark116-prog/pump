@@ -262,3 +262,46 @@ def test_paper_trading_round_trip(tmp_path):
     t2 = PaperTrader(Store(str(tmp_path / "q.db")).db, rules)
     t2.buy("solana", "c", "C", 1.0)
     assert "skipped" in t2.buy("solana", "d", "D", 1.0)
+
+
+def test_wait_before_alerting(tmp_path):
+    import asyncio
+    from memeradar.config import Config
+    from memeradar.models import TokenState
+    from memeradar.pipeline import Radar
+    from memeradar.stage import StageResult
+    cfg = Config(db_path=str(tmp_path / "w.db"), enable_pumpportal=False)
+    r = Radar(cfg)
+
+    def tok(price, liq=20000, stage_name="EARLY", score=0.5):
+        t = TokenState(chain="solana", address="x", symbol="X", price_usd=price, liquidity_usd=liq)
+        t.stage = StageResult(stage_name, 1.5, 0.0, 1.5, [])
+        t.score = score
+        return t
+
+    # healthy for 3 minutes -> alert
+    t = tok(1.0)
+    assert not r._confirmed(t, 1000)                    # starts watching
+    t.price_usd = 1.1
+    assert not r._confirmed(t, 1000 + 60)               # still waiting
+    assert r._confirmed(t, 1000 + 181)
+    assert "watched 3 min" in t.confirm_note and "+10%" in t.confirm_note
+
+    # crashes while waiting -> no alert, not re-watched right away
+    t = tok(1.0)
+    r._confirmed(t, 5000)
+    t.price_usd = 0.6
+    assert not r._confirmed(t, 5030)
+    assert t.candidate_at == 0 and not r._confirmed(t, 5060)
+    assert not r._confirmed(t, 5300) and t.candidate_at == 0   # 15 min pause
+
+    # liquidity pulled / turned DUMPING -> cancelled
+    t = tok(1.0)
+    r._confirmed(t, 9000)
+    t.liquidity_usd = 9000
+    assert not r._confirmed(t, 9200) and t.candidate_at == 0
+    t = tok(1.0)
+    r._confirmed(t, 20000)
+    t.stage = StageResult("DUMPING", 1.5, 0.4, 0.5, [])
+    assert not r._confirmed(t, 20200) and t.candidate_at == 0
+    asyncio.run(r.http.close())

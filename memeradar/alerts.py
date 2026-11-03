@@ -38,6 +38,7 @@ def format_alert(t: TokenState) -> str:
     return (
         f"🚀 ${t.symbol or '?'} ({t.name}) on {t.chain} — score {t.score:.2f}\n"
         f"{stage_line}"
+        f"{t.confirm_note + chr(10) if t.confirm_note else ''}"
         f"age {age} · liq {_usd(t.liquidity_usd)} · mcap {_usd(t.market_cap)} · "
         f"vol 5m {_usd(t.vol_m5)} / 1h {_usd(t.vol_h1)}\n"
         f"social {f.get('social_velocity', 0):.2f} · volume {f.get('volume_acceleration', 0):.2f} · "
