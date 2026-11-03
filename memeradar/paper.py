@@ -35,7 +35,20 @@ CREATE TABLE IF NOT EXISTS paper_trades (
     exit_ts REAL, exit_price REAL, usd_out REAL, reason TEXT,
     tokens_sold REAL DEFAULT 0, usd_partial REAL DEFAULT 0);
 """
-NEW_COLUMNS = {"tokens_sold": "REAL DEFAULT 0", "usd_partial": "REAL DEFAULT 0"}
+NEW_COLUMNS = {"tokens_sold": "REAL DEFAULT 0", "usd_partial": "REAL DEFAULT 0", "entry_mcap": "REAL"}
+
+
+def money(x: float | None) -> str:
+    if not x:
+        return "?"
+    for div, suf in ((1e9, "B"), (1e6, "M"), (1e3, "k")):
+        if x >= div:
+            return f"${x / div:.1f}{suf}"
+    return f"${x:.0f}"
+
+
+def coin_price(x: float) -> str:
+    return f"${x:.10f}".rstrip("0") if x < 0.01 else f"${x:.4f}"
 
 
 class PaperTrader:
@@ -73,7 +86,9 @@ class PaperTrader:
         return wins, len(closed) - wins
 
     # ---------------------------------------------------------------- actions
-    def buy(self, chain: str, address: str, symbol: str, price: float, now: float | None = None) -> str | None:
+    def buy(self, chain: str, address: str, symbol: str, price: float, now: float | None = None,
+            mcap: float | None = None, stop_loss_pct: float | None = None,
+            first_tp_pct: float | None = None) -> str | None:
         r = self.rules
         if not r.enabled or not price or self.is_open(chain, address):
             return None
@@ -84,11 +99,30 @@ class PaperTrader:
         fill = price * (1 + r.slippage_pct / 100)
         tokens = r.trade_usd * (1 - r.fee_pct / 100) / fill
         self.db.execute(
-            "INSERT INTO paper_trades (chain,address,symbol,entry_ts,entry_price,usd_in,tokens) VALUES (?,?,?,?,?,?,?)",
-            (chain, address, symbol, now or time.time(), fill, r.trade_usd, tokens))
+            "INSERT INTO paper_trades (chain,address,symbol,entry_ts,entry_price,usd_in,tokens,entry_mcap) "
+            "VALUES (?,?,?,?,?,?,?,?)",
+            (chain, address, symbol, now or time.time(), fill, r.trade_usd, tokens, mcap))
         self.db.commit()
-        return (f"🤖 PAPER BUY ${symbol}: ${r.trade_usd:.2f} (fake money)\n"
-                f"cash left ${self.cash():.2f} · holding {len(self.open_trades())} coin(s)")
+        lines = [f"🤖 PAPER BUY ${symbol}: ${r.trade_usd:.2f} (fake money)",
+                 f"bought at market cap {money(mcap)} · price {coin_price(price)}"]
+        if mcap and (stop_loss_pct is not None or first_tp_pct is not None):
+            cf = cost_factor(r)
+            at = lambda pct: money(mcap * (1 + pct / 100) / cf)  # noqa: E731  market cap where YOUR money is at pct
+            bits = []
+            if stop_loss_pct is not None:
+                bits.append(f"stop loss if it falls to {at(-stop_loss_pct)}")
+            if first_tp_pct is not None:
+                bits.append(f"take profit 1 at {at(first_tp_pct)}")
+            lines.append(" · ".join(bits))
+        lines.append(f"cash left ${self.cash():.2f} · holding {len(self.open_trades())} coin(s)")
+        return "\n".join(lines)
+
+    def _mcap_at(self, row, price: float | None) -> str:
+        """Market cap at `price`, from the market cap when it was bought."""
+        if not row["entry_mcap"] or not price or not row["entry_price"]:
+            return ""
+        alert_price = row["entry_price"] / (1 + self.rules.slippage_pct / 100)
+        return f" at market cap {money(row['entry_mcap'] * price / alert_price)}"
 
     def take_profit(self, chain: str, address: str, price: float | None, sell_pct: float) -> str | None:
         """Sell `sell_pct`% of the ORIGINAL coins bought (what the take-profit alert says to sell)."""
@@ -108,7 +142,8 @@ class PaperTrader:
         self.db.commit()
         still = left - sell_tokens
         taken = (row["usd_partial"] or 0) + got
-        return (f"🤖 PAPER TAKE PROFIT ${row['symbol']}: sold {sell_pct:.0f}% for ${got:.2f}\n"
+        return (f"🤖 PAPER TAKE PROFIT ${row['symbol']}: sold {sell_pct:.0f}% for ${got:.2f}"
+                f"{self._mcap_at(row, price)}\n"
                 f"taken out so far ${taken:.2f} of ${row['usd_in']:.2f} put in · "
                 f"{still / row['tokens'] * 100:.0f}% still riding (worth ${still * per_token:.2f})")
 
@@ -130,6 +165,7 @@ class PaperTrader:
         wins, losses = self.record()
         icon = "✅" if pnl > 0 else "❌"
         return (f"🤖 PAPER SELL ${row['symbol']} ({reason}): {icon} {pct:+.0f}% · {pnl:+.2f} USD after fees\n"
+                f"sold{self._mcap_at(row, price) or ''} · bought at market cap {money(row['entry_mcap'])}\n"
                 f"{self.summary_line()} · {wins} wins / {losses} losses")
 
     def summary_line(self) -> str:

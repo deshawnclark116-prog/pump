@@ -270,7 +270,10 @@ class Radar:
                                              peak_price=t.price_usd, cost_factor=cost_factor(self.cfg.paper))
                         self.positions[t.key] = pos
                         self.store.save_position(pos)
-                        await self._paper_note(self.paper.buy(t.chain, t.address, t.symbol, t.price_usd),
+                        await self._paper_note(self.paper.buy(
+                            t.chain, t.address, t.symbol, t.price_usd, mcap=t.market_cap,
+                            stop_loss_pct=self.cfg.exits.stop_loss_pct,
+                            first_tp_pct=min(self.cfg.exits.take_profit_levels or [0])),
                                                t.chain, t.address, t.symbol, t.pair_address)
         self.store.commit()
         log.info("cycle: tracking %d tokens, %d scored, %d alerts", len(self.tokens),
