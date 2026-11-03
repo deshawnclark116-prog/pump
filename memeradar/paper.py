@@ -1,8 +1,9 @@
 """Fake-money trading ("paper trading").
 
-Every entry alert buys a fixed dollar amount with pretend money. At the first take-profit alert
-it sells just enough to get back what it put in plus a little (`take_back_pct`), so the rest is
-a "free ride". The first red exit alert (or the end of the watch) sells whatever is left. Fees and slippage are charged the way a real pump.fun /
+Every entry alert buys a fixed dollar amount with pretend money. The first take-profit alert
+(your money +50% after fees) sells it all; if the coin never gets there, the first red exit alert
+(or the end of the watch) sells it. Optionally (`sell_all_at_take_profit = false`) it sells only
+enough at the take-profit to get back `take_back_pct` of the stake and lets the rest ride. Fees and slippage are charged the way a real pump.fun /
 PumpPortal trade would charge them, so the fake balance shows what the strategy would really
 have earned. Nothing here touches a wallet or sends a transaction.
 """
@@ -20,7 +21,8 @@ class PaperRules:
     fee_pct: float = 1.25           # per buy and per sell (trading-service + pump.fun fees, estimate)
     slippage_pct: float = 2.0       # you buy a bit higher / sell a bit lower than the quoted price
     max_open: int = 5               # never hold more than this many coins at once
-    take_back_pct: float = 130.0    # at the first take-profit, sell enough to get back this % of the stake
+    sell_all_at_take_profit: bool = True   # first take-profit sells everything (a tiny leftover isn't worth riding)
+    take_back_pct: float = 130.0    # only if sell_all_at_take_profit = false: sell enough to get back this %
 
 
 def cost_factor(r: "PaperRules") -> float:
@@ -97,6 +99,8 @@ class PaperTrader:
                               (chain, address)).fetchone()
         if not row or row["tokens_sold"] or not price:
             return None
+        if r.sell_all_at_take_profit:
+            return self.sell(chain, address, price, "TAKE PROFIT")
         per_token = price * (1 - r.slippage_pct / 100) * (1 - r.fee_pct / 100)   # cash per token sold
         want = row["usd_in"] * r.take_back_pct / 100
         sell_tokens = min(row["tokens"], want / per_token)

@@ -310,7 +310,7 @@ def test_wait_before_alerting(tmp_path):
 def test_paper_take_profit_gets_stake_back(tmp_path):
     from memeradar.paper import PaperRules, PaperTrader
     from memeradar.store import Store
-    tr = PaperTrader(Store(str(tmp_path / "tp.db")).db, PaperRules(fee_pct=1.0, slippage_pct=0.0, take_back_pct=110, trade_usd=5.0))
+    tr = PaperTrader(Store(str(tmp_path / "tp.db")).db, PaperRules(fee_pct=1.0, slippage_pct=0.0, take_back_pct=110, trade_usd=5.0, sell_all_at_take_profit=False))
     tr.buy("solana", "a", "AAA", 1.0)                 # 4.95 tokens for $5
     msg = tr.take_profit("solana", "a", 1.5)          # +50%
     assert "got back $5.50" in msg and "rides free" in msg
@@ -343,3 +343,13 @@ def test_take_profit_and_stop_loss_use_your_money():
                     entry_price=1.0, peak_price=1.0, cost_factor=cf)
     sig = evaluate(pos2, 0.85, None, None, ExitRules(), now=1)
     assert sig[0].title == "STOP LOSS" and "coin -15%" in sig[0].detail
+
+
+def test_paper_take_profit_sells_all_by_default(tmp_path):
+    from memeradar.paper import PaperRules, PaperTrader
+    from memeradar.store import Store
+    tr = PaperTrader(Store(str(tmp_path / "all.db")).db, PaperRules())
+    tr.buy("solana", "a", "AAA", 1.0)
+    msg = tr.take_profit("solana", "a", 1.6)
+    assert "PAPER SELL $AAA (TAKE PROFIT)" in msg and not tr.open_trades()
+    assert 14.9 < tr.cash() - 90 < 15.1          # ~$15 back on $10
