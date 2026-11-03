@@ -206,6 +206,18 @@ class Radar:
 
             ready.append(t)
 
+        # real coin age + run-up across ALL its pools (a new Raydium pool on an old coin isn't "new")
+        for t in ready:
+            if time.time() - t.history_at > 300:
+                try:
+                    hist = await dexscreener.pools_history(self.http, t.chain, t.address)
+                except Exception as e:  # noqa: BLE001
+                    log.warning("pool history %s failed: %s", t.symbol, e)
+                    hist = None
+                if hist:
+                    t.token_created_at, t.start_mcap = hist["token_created_at"], hist["start_mcap"]
+                    t.history_at = time.time()
+
         # unique buyers/sellers for everything that made it through (30 pools per request)
         by_chain: dict[str, list[TokenState]] = {}
         for t in ready:

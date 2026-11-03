@@ -66,7 +66,10 @@ class TokenState:
     sells_m5: int = 0
     buys_h1: int = 0
     sells_h1: int = 0
-    pair_created_at: float | None = None
+    pair_created_at: float | None = None   # when the main (deepest) pool opened
+    token_created_at: float | None = None  # oldest pool of the coin = its real age
+    start_mcap: float | None = None        # lowest starting market cap seen across its open-market pools
+    history_at: float = 0.0                # when token_created_at/start_mcap were last fetched
     market_updated_at: float = 0.0
     price_native: float | None = None
     quote_symbol: str = ""
@@ -108,6 +111,9 @@ class TokenState:
                 pc = self.price_change.get(w)
                 if pc and pc > -100:
                     refs.append(self.price_usd / (1 + pc / 100))
+            if self.start_mcap and self.market_cap:
+                # a coin that ran on an older pool, then opened a new main pool (e.g. moved to Raydium)
+                refs.append(self.price_usd * self.start_mcap / self.market_cap)
             if self.launch_mcap_sol and self.market_cap and self.price_native and self.quote_symbol == "SOL":
                 sol_usd = self.price_usd / self.price_native
                 refs.append(self.price_usd * self.launch_mcap_sol * sol_usd / self.market_cap)
@@ -116,6 +122,10 @@ class TokenState:
 
     @property
     def age_minutes(self) -> float | None:
-        if self.pair_created_at:
-            return (time.time() - self.pair_created_at) / 60
-        return None
+        """Age of the coin itself (its oldest pool), not of whichever pool is biggest now."""
+        born = self.token_created_at or self.pair_created_at
+        return (time.time() - born) / 60 if born else None
+
+    @property
+    def pool_age_minutes(self) -> float | None:
+        return (time.time() - self.pair_created_at) / 60 if self.pair_created_at else None

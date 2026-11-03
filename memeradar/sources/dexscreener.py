@@ -64,6 +64,30 @@ def parse_pair(pair: dict) -> dict:
     }
 
 
+# launchpad bonding-curve pools: measuring from their start would make every graduated coin look
+# "late" (graduation alone is ~14x), so run-up is measured from the open-market pools instead
+LAUNCHPAD_DEX_HINTS = ("pumpfun", "launchlab", "dbc", "bonding", "moonshot", "moonit", "boop", "bonk", "believe")
+MAX_SANE_RUN = 50.0   # ignore pools that imply >50x (seeded at a silly price, e.g. a fresh DLMM bin)
+
+
+def token_history(pairs: list[dict]) -> dict:
+    """Facts about the coin across ALL its pools, so a brand-new pool on an old coin
+    (a coin moving to Raydium or a new pairing) isn't mistaken for a fresh launch."""
+    created = [_f(p.get("pairCreatedAt")) / 1000 for p in pairs if p.get("pairCreatedAt")]
+    starts = []
+    for p in pairs:
+        dex = (p.get("dexId") or "").lower()
+        if any(h in dex for h in LAUNCHPAD_DEX_HINTS):
+            continue
+        mcap = _f(p.get("marketCap") or p.get("fdv"))
+        changes = [_f(v) for k, v in (p.get("priceChange") or {}).items() if k in ("h6", "h24")]
+        for pc in changes:
+            if mcap and -100 < pc < (MAX_SANE_RUN - 1) * 100:
+                starts.append(mcap / (1 + pc / 100))
+    return {"token_created_at": min(created) if created else None,
+            "start_mcap": min(starts) if starts else None}
+
+
 async def snapshots(http: Http, chain: str, addresses: list[str]) -> dict[str, dict]:
     """Best (most liquid / most traded) pair per token address, 30 tokens per request."""
     result: dict[str, dict] = {}
@@ -80,8 +104,17 @@ async def snapshots(http: Http, chain: str, addresses: list[str]) -> dict[str, d
         for addr, pairs in by_token.items():
             best = max(pairs, key=lambda p: (_f((p.get("liquidity") or {}).get("usd")),
                                              _f((p.get("volume") or {}).get("h1"))))
-            result[addr] = parse_pair(best)
+            result[addr] = parse_pair(best)   # the batch endpoint only returns the top pool
     return result
+
+
+async def pools_history(http: Http, chain: str, address: str) -> dict | None:
+    """token_history() over every pool of one coin (one request; the batch endpoint omits pools)."""
+    data = await http.get(f"{BASE}/token-pairs/v1/{chain}/{address}")
+    if not isinstance(data, list) or not data:
+        return None
+    pairs = [p for p in data if (p.get("baseToken") or {}).get("address") == address]
+    return token_history(pairs or data)
 
 
 async def lookup_any_chain(http: Http, address: str) -> tuple[str, dict] | None:
@@ -92,4 +125,4 @@ async def lookup_any_chain(http: Http, address: str) -> tuple[str, dict] | None:
     if not pairs:
         return None
     best = max(pairs, key=lambda p: _f((p.get("volume") or {}).get("h1")))
-    return best.get("chainId"), parse_pair(best)
+    return best.get("chainId"), {**parse_pair(best), **token_history(pairs)}

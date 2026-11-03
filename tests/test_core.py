@@ -216,3 +216,28 @@ def test_rugcheck_insider_network_rejected():
     assert ok.passed
     bad = evaluate_rugcheck({**base, "insiderNetworks": [{"size": 265, "currentHolding": 807_000}]}, SafetyRules())
     assert not bad.passed and "insider group of 265 wallets holds 81%" in bad.reasons
+
+
+def test_new_pool_on_old_coin_is_not_early():
+    """BINGUS: ran ~$44k -> $260k on an old pool, then opened a new Raydium pool 9 min before
+    the alert. The new pool alone said '1.7x, 9m old'; the coin was really 6x+ and ~1.5h old."""
+    import time
+    from memeradar.models import TokenState
+    from memeradar.sources.dexscreener import token_history
+    now = time.time() * 1000
+    pairs = [
+        {"dexId": "raydium", "marketCap": 296154, "pairCreatedAt": now - 9 * 60000,
+         "priceChange": {"h6": 98, "h24": 98}},
+        {"dexId": "meteora", "marketCap": 279496, "pairCreatedAt": now - 5 * 60000,
+         "priceChange": {"h6": 279458, "h24": 279458}},             # silly seed price: ignored
+        {"dexId": "meteora", "marketCap": 129593, "pairCreatedAt": now - 95 * 60000,
+         "priceChange": {"h6": 193, "h24": 193}},
+        {"dexId": "pumpfun", "marketCap": 38000, "pairCreatedAt": now - 100 * 60000,
+         "priceChange": {"h24": 1300}},                              # launchpad curve: ignored
+    ]
+    h = token_history(pairs)
+    assert abs(h["start_mcap"] - 129593 / 2.93) < 1
+    t = TokenState(chain="solana", address="x", price_usd=1.0, market_cap=296154,
+                   pair_created_at=now / 1000 - 540, price_change={"h6": 98, "h24": 98}, **h)
+    assert 99 < t.age_minutes < 101 and t.pool_age_minutes < 10
+    assert 296154 / (h["start_mcap"]) > 6 and t.reference_price() < 0.2

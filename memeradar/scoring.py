@@ -71,7 +71,7 @@ def volume_acceleration(t: TokenState) -> float:
         return 0.0
     depth = t.liquidity_usd or (t.safety.liquidity_usd if t.safety else None) or t.market_cap
     vliq = t.vol_h1 / depth if depth else 0.0
-    age = t.age_minutes or 60
+    age = t.pool_age_minutes or 60   # vol_h1 belongs to the main pool, so compare with its age
     expected_m5_share = 5 / clip(age, 5, 60)
     accel = (t.vol_m5 / t.vol_h1) / expected_m5_share   # 1.0 = steady, >1 = speeding up
     return 0.5 * sat(vliq, 1.0) + 0.3 * clip((accel - 1) / 2) + 0.2 * sat(t.vol_h1, 50_000)
