@@ -11,6 +11,7 @@ import time
 from collections import OrderedDict
 
 from . import alerts, exits, safety, scoring, stage
+from .paper import PaperTrader
 from .config import Config
 from .http import Http
 from .models import TokenState
@@ -36,6 +37,7 @@ class Radar:
         self.rejected: OrderedDict[tuple[str, str], float] = OrderedDict()
         self.pending_addresses: OrderedDict[str, None] = OrderedDict()
         self.positions: dict[tuple[str, str], exits.Position] = {}
+        self.paper = PaperTrader(self.store.db, cfg.paper)
         for raw in self.store.load_positions():
             pos = exits.Position(**raw)
             self.positions[(pos.chain, pos.address)] = pos
@@ -256,6 +258,8 @@ class Radar:
                                              peak_price=t.price_usd)
                         self.positions[t.key] = pos
                         self.store.save_position(pos)
+                        await self._paper_note(self.paper.buy(t.chain, t.address, t.symbol, t.price_usd),
+                                               t.chain, t.address, t.symbol, t.pair_address)
         self.store.commit()
         log.info("cycle: tracking %d tokens, %d scored, %d alerts", len(self.tokens),
                  sum(1 for t in self.tokens.values() if t.features), len(alerted))
@@ -294,7 +298,16 @@ class Radar:
             self.store.save_position(pos)
             if pos.closed:
                 self.positions.pop(key, None)
+                await self._paper_note(self.paper.sell(pos.chain, pos.address, pos.last_price, pos.close_reason),
+                                       pos.chain, pos.address, pos.symbol, pos.pair_address)
         self.store.commit()
+
+    async def _paper_note(self, text: str | None, chain: str, address: str, symbol: str,
+                          pair: str | None) -> None:
+        if text:
+            log.info(text.replace("\n", " | "))
+            await alerts.send_text(self.http, self.cfg, text, symbol=symbol, address=address,
+                                   kind="PAPER", link=alerts.chart_link(chain, pair or address))
 
     async def housekeeping(self) -> None:
         removed = self.store.prune(self.cfg.keep_days)

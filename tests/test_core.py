@@ -241,3 +241,24 @@ def test_new_pool_on_old_coin_is_not_early():
                    pair_created_at=now / 1000 - 540, price_change={"h6": 98, "h24": 98}, **h)
     assert 99 < t.age_minutes < 101 and t.pool_age_minutes < 10
     assert 296154 / (h["start_mcap"]) > 6 and t.reference_price() < 0.2
+
+
+def test_paper_trading_round_trip(tmp_path):
+    from memeradar.paper import PaperRules, PaperTrader
+    from memeradar.store import Store
+    trader = PaperTrader(Store(str(tmp_path / "p.db")).db, PaperRules(fee_pct=1.0, slippage_pct=0.0))
+    assert "PAPER BUY $AAA" in trader.buy("solana", "a", "AAA", 1.0)
+    assert trader.buy("solana", "a", "AAA", 1.0) is None          # already holding
+    assert abs(trader.cash() - 95.0) < 1e-9
+    msg = trader.sell("solana", "a", 2.0, "GET OUT")               # price doubled
+    assert "✅" in msg and "1 wins / 0 losses" in msg
+    # $5 -1% fee -> 4.95 worth of tokens, doubles to 9.90, -1% fee -> 9.801
+    assert abs(trader.cash() - (95 + 9.801)) < 1e-6
+    trader.buy("solana", "b", "BBB", 1.0)
+    assert "❌" in trader.sell("solana", "b", 0.03, "RUG WARNING")
+    assert trader.record() == (1, 1)
+    assert trader.sell("solana", "zzz", 1.0, "x") is None
+    rules = PaperRules(max_open=1)
+    t2 = PaperTrader(Store(str(tmp_path / "q.db")).db, rules)
+    t2.buy("solana", "c", "C", 1.0)
+    assert "skipped" in t2.buy("solana", "d", "D", 1.0)

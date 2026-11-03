@@ -47,6 +47,24 @@ async def report(cfg) -> None:
             print(f"      {t} {e['title']}: {e['detail']} (at {e['change_pct']:+.0f}%)")
 
 
+def paper_report(cfg) -> None:
+    import time
+    from .paper import PaperTrader
+    trader = PaperTrader(Store(cfg.db_path).db, cfg.paper)
+    closed, still_open = trader.closed_trades(), trader.open_trades()
+    if not closed and not still_open:
+        print("no fake trades yet")
+        return
+    for t in closed:
+        pnl = t["usd_out"] - t["usd_in"]
+        print(f"{time.strftime('%m-%d %H:%M', time.localtime(t['entry_ts']))}  ${t['symbol']:<12} "
+              f"{pnl / t['usd_in'] * 100:+5.0f}%  {pnl:+7.2f} USD  ({t['reason']})")
+    for t in still_open:
+        print(f"{time.strftime('%m-%d %H:%M', time.localtime(t['entry_ts']))}  ${t['symbol']:<12} still holding")
+    wins, losses = trader.record()
+    print(f"\n{trader.summary_line()} · {wins} wins / {losses} losses · {len(still_open)} open")
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(prog="memeradar", description="Free meme-coin momentum radar")
     ap.add_argument("--config", help="path to config.toml")
@@ -59,6 +77,7 @@ def main() -> None:
     run.add_argument("--no-pumpportal", action="store_true", help="disable the pump.fun websocket")
 
     sub.add_parser("report", help="every alert so far and what it did afterwards")
+    sub.add_parser("paper", help="fake-money trades and balance")
 
     for name in ("backtest", "tune"):
         p = sub.add_parser(name, help=f"{name} scoring weights on collected snapshots")
@@ -82,6 +101,9 @@ def main() -> None:
 
     if args.cmd == "report":
         asyncio.run(report(cfg))
+        return
+    if args.cmd == "paper":
+        paper_report(cfg)
         return
 
     threshold = args.threshold if args.threshold is not None else cfg.alert_threshold

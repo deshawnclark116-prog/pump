@@ -45,7 +45,9 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
       - name: alerts so far
         if: always() && hashFiles('memeradar.db') != ''
-        run: python -m memeradar report || true
+        run: |
+          python -m memeradar report || true
+          python -m memeradar paper || true
       - uses: actions/cache/save@v4
         if: always() && hashFiles('memeradar.db') != ''
         with:

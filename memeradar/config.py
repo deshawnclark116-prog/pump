@@ -7,6 +7,7 @@ from dataclasses import dataclass, field, fields
 from pathlib import Path
 
 from .exits import ExitRules
+from .paper import PaperRules
 from .stage import StageRules
 
 
@@ -82,6 +83,7 @@ class Config:
     safety: SafetyRules = field(default_factory=SafetyRules)
     stage: StageRules = field(default_factory=StageRules)
     exits: ExitRules = field(default_factory=ExitRules)
+    paper: PaperRules = field(default_factory=PaperRules)
 
     smart_wallets: set[str] = field(default_factory=set)
 

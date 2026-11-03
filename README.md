@@ -79,6 +79,17 @@ A red alert ends the watch. To see every alert and what it did afterwards:
 python -m memeradar report
 ```
 
+## Fake-money trading (paper mode)
+
+Every entry alert also makes a pretend $5 buy, and the first red exit alert (or the end of the 6h
+watch) sells it. Fees (1.25% each way) and slippage (2% each way) are charged like a real trade. Your
+phone gets a 🤖 PAPER BUY / PAPER SELL message with the fake balance (starts at $100). No wallet,
+no real money. To see every fake trade:
+
+```bash
+python -m memeradar paper
+```
+
 ## Pipeline
 
 1. **Radar (ingestion).** Every new pump.fun token arrives over PumpPortal. DexScreener and GeckoTerminal add fresh and boosted tokens on Solana,
