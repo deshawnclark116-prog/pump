@@ -8,7 +8,7 @@ sells near graduation, before the usual graduation dump. It keeps its own fake b
 Rules (all market caps in SOL, so they don't move with the SOL price):
   BUY   market cap between `buy_min_sol` and `buy_max_sol` (~40-55% of the way), coin under
         `max_age_minutes` old, real buying in the last 5 min (enough buys, more buys than sells but
-        some sells, not tiny bot buys), price rising, and RugCheck finds no rug signs.
+        some sells), price rising, and RugCheck finds no rug signs.
   SELL  - market cap reaches `sell_at_sol` (near graduation), or it graduates  -> take profit
         - your money down `stop_loss_pct` after fees                          -> stop loss
         - held `max_hold_minutes` without reaching the target                 -> time's up
@@ -116,7 +116,7 @@ class GradPlay:
         if ratio > r.max_buy_sell_ratio:
             return f"buys {buys} vs sells {sells}: one-sided"
         vol = self._f((p.get("volume") or {}).get("m5"))
-        if vol / max(buys + sells, 1) < r.min_usd_per_buy:
+        if r.min_usd_per_buy > 0 and vol / max(buys + sells, 1) < r.min_usd_per_buy:
             return "tiny bot buys"
         if self._f((p.get("priceChange") or {}).get("m5")) <= 0:
             return "not rising"

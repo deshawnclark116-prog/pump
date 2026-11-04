@@ -96,7 +96,7 @@ side. Tune or switch it off in the `[steady]` section.
 Every pump.fun coin starts on a bonding curve at ~28 SOL market cap and graduates to the open market
 at ~410 SOL. This strategy follows every new launch (free PumpPortal feed + DexScreener prices) and
 fake-buys coins that are 40-55% of the way there, under an hour old, with real two-sided buying
-(25+ buys in 5 min, more buys than sells but not one-sided, no tiny bot buys, price rising) and no
+(25+ buys in 5 min, more buys than sells but not one-sided, price rising) and no
 RugCheck red flags. It sells near graduation (~90% of the way) or if it graduates, at -25% of your
 money, or after 20 minutes. Own fake balance; tune it in `[grad]`.
 
@@ -146,10 +146,8 @@ python -m memeradar paper
 5. **Alerts and dashboard.** An **EARLY** token that scores at least `alert_threshold` (0.40) is
    alerted right away. Optionally set `confirm_minutes` to watch it first: it is then alerted only if
    it is still healthy (price not down 15%+, liquidity not pulled, not LATE/DUMPING, score held),
-   which skips coins that crash right after qualifying but also buys later. Coins with "fake hype"
-   (5-minute volume under $3 per buyer: bots spraying thousands of tiny buys to inflate the buyer
-   count), or with more than 5 buyers per seller in 5 minutes (real buying always has some
-   selling), are never alerted. One alert per token per 60 minutes. Every score is stored in SQLite.
+   which skips coins that crash right after qualifying but also buys later. Coins with more than 5
+   buyers per seller in 5 minutes (real buying always has some selling) are never alerted. One alert per token per 60 minutes. Every score is stored in SQLite.
 6. **Backtest and tune (Phase 4).**
    ```bash
    python -m memeradar backtest            # hit rate (+50% within 1h) per threshold

@@ -15,7 +15,7 @@ class GradRules:
     min_buys_m5: int = 25
     min_buy_sell_ratio: float = 1.2   # more buys than sells...
     max_buy_sell_ratio: float = 8.0   # ...but not one-sided (fake hype)
-    min_usd_per_buy: float = 3.0      # skip bot spam of tiny buys
+    min_usd_per_buy: float = 0.0      # >0 skips coins whose 5-min trades average under this (off)
     stop_loss_pct: float = 25.0       # YOUR money, after fees
     max_hold_minutes: float = 20.0
     track_minutes: float = 30.0       # follow each new coin this long

@@ -483,7 +483,10 @@ def test_grad_entry_rules(tmp_path):
     assert "outside buy zone" in g._entry_ok(_curve_pair(300), 10)              # too late
     assert "not enough demand" in g._entry_ok(_curve_pair(200, buys=40, sells=50), 10)
     assert "one-sided" in g._entry_ok(_curve_pair(200, buys=300, sells=10), 10)
+    assert g._entry_ok(_curve_pair(200, vol=50), 10) == ""                     # tiny buys allowed (filter off)
+    g.r.min_usd_per_buy = 3.0
     assert "tiny bot buys" in g._entry_ok(_curve_pair(200, vol=50), 10)
+    g.r.min_usd_per_buy = 0.0
     assert "not rising" in g._entry_ok(_curve_pair(200, m5=-2), 10)
     assert "too old" in g._entry_ok(_curve_pair(200), 90)
     assert "bonding curve" in g._entry_ok(_curve_pair(200, dex="pumpswap"), 10)

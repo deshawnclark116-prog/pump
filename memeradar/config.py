@@ -74,9 +74,9 @@ class Config:
     confirm_minutes: float = 0.0          # 0 = alert (and paper-buy) right away
     confirm_max_drop_pct: float = 15.0   # cancel if price falls this much below where it qualified
     confirm_max_liq_drop_pct: float = 20.0
-    # fake-hype filter: bots spray thousands of tiny buys so the buyer count looks huge.
-    # Skip coins whose last-5-min volume works out to less than this many dollars per buyer.
-    min_usd_per_buyer: float = 3.0
+    # optional fake-hype filter: skip coins whose last-5-min volume is under this many dollars per
+    # buyer (bots spraying tiny buys). Off (0) by default: real people buy tiny amounts too.
+    min_usd_per_buyer: float = 0.0
     # one-sided hype filter: real buying always has some selling. Skip coins with more than this
     # many buyers per seller in the last 5 min (e.g. 810 buyers vs 29 sellers).
     max_buyers_per_seller: float = 5.0

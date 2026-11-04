@@ -23,7 +23,7 @@ confirm_minutes = 0.0          # watch a qualifying coin this long before alerti
 confirm_max_drop_pct = 15.0    # ...and skip it if the price falls this much meanwhile
 confirm_max_liq_drop_pct = 20.0
 max_buyers_per_seller = 5.0   # skip one-sided "hype": more than 5 buyers per seller in 5 min
-min_usd_per_buyer = 3.0       # skip "fake hype": 5-min volume under $3 per buyer means bots spraying tiny buys
+min_usd_per_buyer = 0.0       # >0 skips coins averaging under this many $ per buyer in 5 min (off)
 
 db_path = "memeradar.db"
 keep_days = 14                # delete score history older than this (alerts are kept)
@@ -99,6 +99,6 @@ max_age_minutes = 60.0
 min_buys_m5 = 25
 min_buy_sell_ratio = 1.2
 max_buy_sell_ratio = 8.0
-min_usd_per_buy = 3.0
+min_usd_per_buy = 0.0         # >0 skips coins with tiny average trades (off)
 stop_loss_pct = 25.0          # YOUR money after fees
 max_hold_minutes = 20.0
