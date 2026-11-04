@@ -66,10 +66,10 @@ Every alerted coin keeps being watched every 3 seconds, for up to 6 hours:
 
 | Alert | When |
 |---|---|
-| 🟠 TAKE PROFIT 1 | **your money** up +20% after fees and slippage (the coin itself is up ~28%, because a buy + sell costs ~6%): **don't sell**, your stop loss moves up to break-even (0%) |
-| 🟢 TAKE PROFIT 2 | your money +100%: **sell 50%** of what you bought |
-| 🟢 TAKE PROFIT 3 | your money +200%: **sell 25% more** |
-| 🟢 TAKE PROFIT 4 | your money +300%: **sell the rest** |
+| 🟢 TAKE PROFIT 1 | **your money** up +20% after fees and slippage (the coin itself is up ~28%): **sell half**, stop moves up to break-even |
+| 🟢 TAKE PROFIT 2 | your money +100%: **sell 25% more** |
+| 🟢 TAKE PROFIT 3 | your money +200%: **sell 15% more** |
+| 🟢 TAKE PROFIT 4 | your money +300%: **sell the last 10%** |
 | 🟠 FADING | stage turned LATE: buyers drying up |
 | 🔴 TRAILING STOP | after take profit 1: the price falls 20% below its highest point. Sells everything left |
 | 🔴 GET OUT | before take profit 1 only: 15% off its high since the alert (once it has been up 10%+) |

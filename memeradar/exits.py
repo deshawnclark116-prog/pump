@@ -2,10 +2,10 @@
 
 Take profits are measured on YOUR MONEY after buy/sell fees and slippage, not the coin price:
 
-  🟠 TAKE PROFIT 1  +20%:  don't sell. Your stop loss moves up to break-even (0%)
-  🟢 TAKE PROFIT 2  +100%: sell 50%
-  🟢 TAKE PROFIT 3  +200%: sell 25% more
-  🟢 TAKE PROFIT 4  +300%: sell the last 25%
+  🟢 TAKE PROFIT 1  +20%:  sell HALF. Your stop loss moves up to break-even (0%)
+  🟢 TAKE PROFIT 2  +100%: sell 25% more
+  🟢 TAKE PROFIT 3  +200%: sell 15% more
+  🟢 TAKE PROFIT 4  +300%: sell the last 10%
   🔴 TRAILING STOP  after take profit 1, the price fell 20% below its high: sell everything left
   🔴 STOP LOSS      after a take profit, your money fell back to that take profit's level
                     (the stop trails one step behind: 0% after TP1, +20% after TP2, +100% after TP3)
@@ -30,7 +30,7 @@ from .stage import DUMPING, LATE
 class ExitRules:
     take_profit_levels: list[float] = field(default_factory=lambda: [20.0, 100.0, 200.0, 300.0])  # YOUR money
     # % of the ORIGINAL position to sell at each level above (0 = sell nothing, just lock in)
-    take_profit_sell_pct: list[float] = field(default_factory=lambda: [0.0, 50.0, 25.0, 25.0])
+    take_profit_sell_pct: list[float] = field(default_factory=lambda: [50.0, 25.0, 15.0, 10.0])
     # after a take profit the stop moves up to the PREVIOUS level (0 = break-even after TP1), so a
     # normal dip right after a take profit doesn't sell a coin that keeps running. 0 = stop AT the level.
     stop_steps_behind: int = 1

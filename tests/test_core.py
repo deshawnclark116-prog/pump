@@ -173,7 +173,7 @@ def _pos():
 
 
 def test_exit_take_profit_levels_fire_once():
-    p, r = _pos(), ex.ExitRules(take_profit_levels=[50.0, 100.0, 200.0, 300.0])                          # _pos has no fees (cost_factor 1)
+    p, r = _pos(), ex.ExitRules(take_profit_levels=[50.0, 100.0, 200.0, 300.0], take_profit_sell_pct=[0.0, 50.0, 25.0, 25.0])                          # _pos has no fees (cost_factor 1)
     sig = ex.evaluate(p, 1.6, 20_000, "RUNNING", r)
     assert [x.title for x in sig] == ["TAKE PROFIT 1"] and sig[0].sell_pct == 0
     assert ex.evaluate(p, 1.7, 20_000, "RUNNING", r) == []
@@ -183,7 +183,7 @@ def test_exit_take_profit_levels_fire_once():
 
 
 def test_exit_trailing_stop_after_peak():
-    p, r = _pos(), ex.ExitRules(take_profit_levels=[50.0, 100.0, 200.0, 300.0])
+    p, r = _pos(), ex.ExitRules(take_profit_levels=[50.0, 100.0, 200.0, 300.0], take_profit_sell_pct=[0.0, 50.0, 25.0, 25.0])
     ex.evaluate(p, 1.40, 20_000, "RUNNING", r)            # +40%: not yet a take-profit
     sigs = ex.evaluate(p, 1.15, 20_000, "LATE", r)        # 18% off the high
     assert sigs[0].title == "GET OUT" and p.closed
@@ -335,7 +335,7 @@ def test_take_profit_ladder(tmp_path):
     from memeradar.exits import ExitRules, Position, evaluate
     from memeradar.paper import PaperRules, PaperTrader, cost_factor
     from memeradar.store import Store
-    rules, pr = ExitRules(take_profit_levels=[50.0, 100.0, 200.0, 300.0], stop_steps_behind=0), PaperRules()
+    rules, pr = ExitRules(take_profit_levels=[50.0, 100.0, 200.0, 300.0], stop_steps_behind=0, take_profit_sell_pct=[0.0, 50.0, 25.0, 25.0]), PaperRules()
     cf = cost_factor(pr)
     tr = PaperTrader(Store(str(tmp_path / "ladder.db")).db, pr)
 
@@ -388,7 +388,7 @@ def test_first_take_profit_is_plus_20_by_default():
                    entry_price=1.0, peak_price=1.0, cost_factor=cost_factor(PaperRules()))
     assert evaluate(pos, 1.25, None, None, ExitRules(), now=1) == []      # coin +25% = money ~+17%
     sig = evaluate(pos, 1.30, None, None, ExitRules(), now=2)             # money ~+22%
-    assert sig[0].title == "TAKE PROFIT 1" and "+0%" in sig[0].detail and sig[0].sell_pct == 0
+    assert sig[0].title == "TAKE PROFIT 1" and "+0%" in sig[0].detail and sig[0].sell_pct == 50
     assert evaluate(pos, 1.12, None, None, ExitRules(), now=3) == []      # money ~+5%: still above break-even
     assert evaluate(pos, 1.05, None, None, ExitRules(), now=4)[0].title == "STOP LOSS"   # under break-even
 
@@ -399,8 +399,8 @@ def test_stop_trails_one_step_behind():
                    entry_price=1.0, peak_price=1.0)                     # no fees: money = coin
     r = ExitRules(trail_after_tp_pct=0)                                  # test the step stop alone
     evaluate(pos, 1.25, None, None, r, now=1)                             # TP1 -> stop 0%
-    sig = evaluate(pos, 2.1, None, None, r, now=2)                        # TP2 -> sell 50%, stop +20%
-    assert sig[0].sell_pct == 50 and "stop moves up to +20%" in sig[0].detail
+    sig = evaluate(pos, 2.1, None, None, r, now=2)                        # TP2 -> sell 25% more, stop +20%
+    assert sig[0].sell_pct == 25 and "stop moves up to +20%" in sig[0].detail
     assert evaluate(pos, 1.3, None, None, r, now=3) == []                 # +30%: still above +20%
     assert evaluate(pos, 1.19, None, None, r, now=4)[0].title == "STOP LOSS"
 
@@ -638,3 +638,23 @@ def test_scalper_buys_the_dip(tmp_path):
     asyncio.run(s.consider(coin("X")))
     asyncio.run(s.manage(FakeHttp({"X": 0.6, "D": 1.04})))                # -40%: dump, skip
     assert "X" not in s.watching and "X" not in s.held
+
+
+def test_tp1_sells_half_capy(tmp_path):
+    """CAPY: TP1, peaked ~+39% of your money, crashed back to -3%. Half sold at TP1 now."""
+    from memeradar.exits import ExitRules, Position, evaluate
+    from memeradar.paper import PaperRules, PaperTrader, cost_factor
+    from memeradar.store import Store
+    pr = PaperRules()
+    tr = PaperTrader(Store(str(tmp_path / "c.db")).db, pr)
+    pos = Position(chain="solana", address="C", symbol="C", pair_address="p", entry_ts=0,
+                   entry_price=1.0, peak_price=1.0, cost_factor=cost_factor(pr))
+    tr.buy("solana", "C", "C", 1.0)
+    sig = evaluate(pos, 1.30, None, None, ExitRules(), now=1)
+    assert sig[0].sell_pct == 50 and "sell 50%" in sig[0].detail
+    tr.take_profit("solana", "C", 1.30, sig[0].sell_pct)
+    evaluate(pos, 1.48, None, None, ExitRules(), now=2)
+    sig = evaluate(pos, 1.03, None, None, ExitRules(), now=3)            # crash back
+    assert pos.closed
+    tr.sell("solana", "C", 1.03, sig[0].title)
+    assert tr.cash() > 100.5                                            # was -$0.34; now a small win
