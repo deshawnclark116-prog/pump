@@ -10,6 +10,7 @@ class GradRules:
     graduation_sol: float = 410.0     # market cap (SOL) where a pump.fun coin graduates
     buy_min_sol: float = 70.0         # ~17% of the way to graduation: get in early...
     buy_max_sol: float = 160.0        # ...up to ~40%
+    min_mcap_usd: float = 10_000      # ...but never under $10k market cap (those lost with every rule)
     sell_at_sol: float = 370.0        # ~90%: sell before the graduation dump
     max_age_minutes: float = 60.0
     min_buys_m5: int = 25

@@ -153,7 +153,9 @@ python -m memeradar paper
    - `smart_money`: off by default (weight 0).
 
    Then the stage multiplier is applied (see above).
-5. **Alerts and dashboard.** An **EARLY** token that scores at least `alert_threshold` (0.20) is
+5. **Alerts and dashboard.** An **EARLY** token worth at least $10k (`min_entry_mcap_usd`; every
+   strategy uses this floor, because in replays coins bought under $10k lost money with every exit
+   rule tried) that scores at least `alert_threshold` (0.20) is
    alerted right away. Optionally set `confirm_minutes` to watch it first: it is then alerted only if
    it is still healthy (price not down 15%+, liquidity not pulled, not LATE/DUMPING, score held),
    which skips coins that crash right after qualifying but also buys later. Coins with more than 5

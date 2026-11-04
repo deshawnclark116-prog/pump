@@ -69,6 +69,9 @@ class Config:
 
     # alerting
     alert_threshold: float = 0.20
+    # never alert/buy coins below this market cap: in replays of every fake buy, coins bought under
+    # $10k lost money with EVERY exit rule tried; $10k+ made money with most of them.
+    min_entry_mcap_usd: float = 10_000
     alert_cooldown_minutes: int = 60
     # wait before alerting: a coin that qualifies is watched this long first, and only alerted if
     # it is still healthy (filters the "alert, then crash 1 minute later" coins)

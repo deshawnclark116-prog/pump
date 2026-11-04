@@ -17,6 +17,7 @@ min_liquidity_usd = 3000
 early_min_volume_m5_usd = 3000   # fast lane: a burst in the last 5 min gets checked right away
 
 alert_threshold = 0.20
+min_entry_mcap_usd = 10000      # never alert/buy under this market cap (they lost with every exit rule)
 alert_stages = ["EARLY"]       # add "RUNNING" for more (later, riskier) alerts
 alert_cooldown_minutes = 60
 confirm_minutes = 0.0          # watch a qualifying coin this long before alerting (0 = alert right away)
@@ -95,6 +96,7 @@ enabled = true
 graduation_sol = 410.0        # market cap (SOL) where a coin graduates
 buy_min_sol = 70.0            # buy between ~17%...
 buy_max_sol = 160.0           # ...and ~40% of the way
+min_mcap_usd = 10000          # never under $10k market cap
 sell_at_sol = 370.0           # sell at ~90%, before the graduation dump
 max_age_minutes = 60.0
 min_buys_m5 = 25
@@ -116,6 +118,7 @@ min_buy_sell_ratio = 1.2
 max_buy_sell_ratio = 5.0
 min_volume_m5_usd = 5000
 min_liquidity_usd = 15000
+min_mcap_usd = 10000
 cooldown_minutes = 15.0       # before scalping the same coin again
 slippage_pct = 0.5
 trade_usd = 10.0

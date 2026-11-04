@@ -297,6 +297,8 @@ class Radar:
 
     async def _enter(self, t: TokenState, now: float, book: str, steady_reason: str = "") -> bool:
         """Send the entry alert, start watching for exits, and make the fake buy for `book`."""
+        if (t.market_cap or 0) < self.cfg.min_entry_mcap_usd:
+            return False                       # too small: these lose with every exit rule
         last = t.last_alert or self.store.last_alert_ts(t.chain, t.address)
         if now - last <= self.cfg.alert_cooldown_minutes * 60:
             return False

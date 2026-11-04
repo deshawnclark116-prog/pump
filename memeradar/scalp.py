@@ -38,6 +38,7 @@ class ScalpRules:
     max_buy_sell_ratio: float = 5.0
     min_volume_m5_usd: float = 5_000
     min_liquidity_usd: float = 15_000
+    min_mcap_usd: float = 10_000
     cooldown_minutes: float = 15.0    # before scalping the same coin again
     slippage_pct: float = 0.5         # a $10 order barely moves a $15k+ pool
     start_balance_usd: float = 100.0
@@ -53,6 +54,8 @@ def qualifies(t: TokenState, r: ScalpRules) -> str:
         return ""
     m5 = (t.price_change or {}).get("m5")
     if m5 is None or not (r.min_m5_pct <= m5 <= r.max_m5_pct):
+        return ""
+    if (t.market_cap or 0) < r.min_mcap_usd:
         return ""
     if (t.liquidity_usd or 0) < r.min_liquidity_usd or t.vol_m5 < r.min_volume_m5_usd:
         return ""

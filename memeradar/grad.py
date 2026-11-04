@@ -104,6 +104,8 @@ class GradPlay:
             return "not on the bonding curve"
         if not (r.buy_min_sol <= sol <= r.buy_max_sol):
             return f"market cap {sol:.0f} SOL outside buy zone"
+        if self._f(p.get("marketCap") or p.get("fdv")) < r.min_mcap_usd:
+            return "under the minimum market cap"
         if age_min > r.max_age_minutes:
             return "too old"
         tx = (p.get("txns") or {}).get("m5") or {}

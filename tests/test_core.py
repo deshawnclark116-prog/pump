@@ -489,6 +489,7 @@ def test_grad_entry_rules(tmp_path):
     g.r.min_usd_per_buy = 0.0
     assert "not rising" in g._entry_ok(_curve_pair(120, m5=-2), 10)
     assert "too old" in g._entry_ok(_curve_pair(120), 90)
+    assert "minimum market cap" in g._entry_ok(_curve_pair(100), 10)     # 100 SOL = $9.3k < $10k
     assert "bonding curve" in g._entry_ok(_curve_pair(120, dex="pumpswap"), 10)
 
 
@@ -528,6 +529,7 @@ def test_scalper_in_and_out(tmp_path):
 
     def coin(**kw):
         base = dict(chain="solana", address="S", symbol="S", price_usd=1.0, liquidity_usd=30_000, vol_m5=12_000,
+                    market_cap=120_000,
                     price_change={"m5": 8}, buyers={"m5": 90}, sellers={"m5": 50}, pair_address="P")
         base.update(kw)
         t = TokenState(**base)
@@ -540,6 +542,7 @@ def test_scalper_in_and_out(tmp_path):
     assert qualifies(coin(price_change={"m5": -2}), r) == ""             # not moving up
     assert qualifies(coin(buyers={"m5": 90}, sellers={"m5": 10}), r) == ""   # one-sided
     assert qualifies(coin(liquidity_usd=5_000), r) == ""
+    assert qualifies(coin(market_cap=8_000), r) == ""                    # under the $10k minimum
 
     sent = []
 
@@ -580,3 +583,14 @@ def test_trailing_stop_after_take_profit_1():
     p2 = Position(chain="solana", address="U", symbol="U", pair_address="p", entry_ts=0,
                   entry_price=1.0, peak_price=1.0, cost_factor=1.0)
     assert evaluate(p2, 1.05, None, None, r, now=1) == []
+
+
+def test_fast_radar_skips_coins_under_10k(tmp_path):
+    import asyncio
+    from memeradar.config import Config
+    from memeradar.models import TokenState
+    from memeradar.pipeline import Radar
+    r = Radar(Config(db_path=str(tmp_path / "m.db"), enable_pumpportal=False, ntfy_topic=""))
+    tiny = TokenState(chain="solana", address="t", symbol="T", price_usd=0.0000026, market_cap=2_600)
+    assert asyncio.run(r._enter(tiny, 1000.0, "fast")) is False and not r.positions
+    asyncio.run(r.http.close())
