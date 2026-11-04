@@ -71,6 +71,7 @@ Every alerted coin keeps being watched every 3 seconds, for up to 6 hours:
 | 🟢 TAKE PROFIT 3 | your money +200%: **sell 25% more** |
 | 🟢 TAKE PROFIT 4 | your money +300%: **sell the rest** |
 | 🟠 FADING | stage turned LATE: buyers drying up |
+| 🔴 TRAILING STOP | after take profit 1: the price falls 20% below its highest point. Sells everything left |
 | 🔴 GET OUT | before take profit 1 only: 15% off its high since the alert (once it has been up 10%+) |
 | 🔴 STOP LOSS | before take profit 1: **your money** down 20% after fees. After a take profit the stop trails one step behind: break-even after TP1, +20% after TP2, +100% after TP3. Falling back to it sells everything left |
 | 🔴 DUMPING | sellers swamping buyers |

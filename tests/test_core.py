@@ -397,7 +397,7 @@ def test_stop_trails_one_step_behind():
     from memeradar.exits import ExitRules, Position, evaluate
     pos = Position(chain="solana", address="a", symbol="A", pair_address="p", entry_ts=0,
                    entry_price=1.0, peak_price=1.0)                     # no fees: money = coin
-    r = ExitRules()
+    r = ExitRules(trail_after_tp_pct=0)                                  # test the step stop alone
     evaluate(pos, 1.25, None, None, r, now=1)                             # TP1 -> stop 0%
     sig = evaluate(pos, 2.1, None, None, r, now=2)                        # TP2 -> sell 50%, stop +20%
     assert sig[0].sell_pct == 50 and "stop moves up to +20%" in sig[0].detail
@@ -561,3 +561,22 @@ def test_scalper_in_and_out(tmp_path):
     assert "TAKE PROFIT" in sent[-1] and "✅" in sent[-1] and not s.held
     asyncio.run(s.consider(coin()))                                      # cooldown: no re-buy yet
     assert "TAKE PROFIT" in sent[-1]
+
+
+def test_trailing_stop_after_take_profit_1():
+    """Thesis: TP1, then doubled (+87% money) without reaching TP2, then crashed back."""
+    from memeradar.exits import ExitRules, Position, evaluate
+    from memeradar.paper import PaperRules, cost_factor
+    pos = Position(chain="solana", address="T", symbol="T", pair_address="p", entry_ts=0,
+                   entry_price=1.0, peak_price=1.0, cost_factor=cost_factor(PaperRules()))
+    r = ExitRules()
+    assert evaluate(pos, 1.56, None, None, r, now=1)[0].title == "TAKE PROFIT 1"
+    assert evaluate(pos, 2.00, None, None, r, now=2) == []          # +87% money, short of TP2
+    assert evaluate(pos, 1.70, None, None, r, now=3) == []          # 15% off the high: hold
+    sig = evaluate(pos, 1.59, None, None, r, now=4)                 # 20.5% off the high
+    assert sig[0].title == "TRAILING STOP" and pos.closed
+    assert pos.money_change(1.59) > 45                              # keeps ~+49% instead of -5%
+    # before take profit 1 the trailing-after-TP rule doesn't apply
+    p2 = Position(chain="solana", address="U", symbol="U", pair_address="p", entry_ts=0,
+                  entry_price=1.0, peak_price=1.0, cost_factor=1.0)
+    assert evaluate(p2, 1.05, None, None, r, now=1) == []

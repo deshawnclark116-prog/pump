@@ -6,6 +6,7 @@ Take profits are measured on YOUR MONEY after buy/sell fees and slippage, not th
   🟢 TAKE PROFIT 2  +100%: sell 50%
   🟢 TAKE PROFIT 3  +200%: sell 25% more
   🟢 TAKE PROFIT 4  +300%: sell the last 25%
+  🔴 TRAILING STOP  after take profit 1, the price fell 20% below its high: sell everything left
   🔴 STOP LOSS      after a take profit, your money fell back to that take profit's level
                     (the stop trails one step behind: 0% after TP1, +20% after TP2, +100% after TP3)
 
@@ -33,6 +34,10 @@ class ExitRules:
     # after a take profit the stop moves up to the PREVIOUS level (0 = break-even after TP1), so a
     # normal dip right after a take profit doesn't sell a coin that keeps running. 0 = stop AT the level.
     stop_steps_behind: int = 1
+    # after take profit 1, also sell everything left if the price drops this % below its highest
+    # point, so gains between take profits are protected (Thesis: doubled, then gave it all back).
+    # 0 = off.
+    trail_after_tp_pct: float = 20.0
     trailing_stop_pct: float = 15.0     # % drop from the high since the alert
     trailing_arm_pct: float = 10.0      # trailing stop only arms once it's been up this much
     stop_loss_pct: float = 20.0         # % of YOUR money lost (after fees), not just the coin price
@@ -114,6 +119,9 @@ def evaluate(pos: Position, price: float | None, liquidity: float | None, stage:
         if money <= locked:
             close("STOP LOSS", f"your money fell back to {locked:+.0f}% (your raised stop): "
                                f"sell everything left (now {money:+.0f}%)")
+        elif rules.trail_after_tp_pct and off_high >= rules.trail_after_tp_pct:
+            close("TRAILING STOP", f"{off_high:.0f}% below its high after a take profit: sell everything left "
+                                   f"(your money {money:+.0f}%, best {pos.money_change(pos.peak_price):+.0f}%)")
     elif money <= -rules.stop_loss_pct:
         close("STOP LOSS", f"your money {money:+.0f}% after fees (coin {chg:+.0f}%)")
     elif peak_chg >= rules.trailing_arm_pct and off_high >= rules.trailing_stop_pct:
