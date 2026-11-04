@@ -20,7 +20,9 @@ class GradRules:
     max_buy_sell_ratio: float = 1.5   # ...but balanced: winners had ~1.3 buys per sell; frenzies (1.5-2.2) dumped
     min_usd_per_buy: float = 0.0      # >0 skips coins whose 5-min trades average under this (off)
     stop_loss_pct: float = 25.0       # YOUR money, after fees
-    max_hold_minutes: float = 30.0    # more room, since it starts further from graduation
+    max_hold_minutes: float = 60.0    # safety limit; the trailing stop does the real work
+    trail_arm_pct: float = 20.0       # once YOUR money has been up this much...
+    trail_pct: float = 30.0           # ...sell if the price falls this % below its high (0 = off)
     track_minutes: float = 30.0       # follow each new coin this long
     dead_after_minutes: float = 8.0   # drop coins still under `dead_below_sol` after this
     dead_below_sol: float = 45.0

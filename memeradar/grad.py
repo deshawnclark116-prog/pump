@@ -11,6 +11,8 @@ Rules (all market caps in SOL, so they don't move with the SOL price):
         some sells), price rising, and RugCheck finds no rug signs.
   SELL  - market cap reaches `sell_at_sol` (near graduation), or it graduates  -> take profit
         - your money down `stop_loss_pct` after fees                          -> stop loss
+        - after your money has been up `trail_arm_pct`, the price falls `trail_pct` below its high
+                                                                               -> trailing stop
         - held `max_hold_minutes` without reaching the target                 -> time's up
 """
 from __future__ import annotations
@@ -43,6 +45,7 @@ class _Holding:
     entry_price: float
     entry_mcap_usd: float | None
     pair: str
+    high: float = 0.0          # highest price seen since buying (for the trailing stop)
 
 
 class GradPlay:
@@ -201,6 +204,10 @@ class GradPlay:
                 continue
             money = (price / h.entry_price * self.cf - 1) * 100
             sol = self.mcap_sol(p)
+            h.high = max(h.high or h.entry_price, price)
+            best = (h.high / h.entry_price * self.cf - 1) * 100
+            trailing = (self.r.trail_pct and best >= self.r.trail_arm_pct
+                        and price <= h.high * (1 - self.r.trail_pct / 100))
             reason = ""
             if graduated:
                 reason = "GRADUATED"
@@ -208,6 +215,8 @@ class GradPlay:
                 reason = f"NEAR GRADUATION ({sol / self.r.graduation_sol:.0%})"
             elif money <= -self.r.stop_loss_pct:
                 reason = "STOP LOSS"
+            elif trailing:
+                reason = f"TRAILING STOP ({(1 - price / h.high) * 100:.0f}% below its high, best +{best:.0f}%)"
             elif now - h.entry_ts > self.r.max_hold_minutes * 60:
                 reason = "TIME'S UP"
             if reason:

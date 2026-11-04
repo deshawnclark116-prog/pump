@@ -112,7 +112,8 @@ fake-buys coins as early as ~17-40% of the way there (never under $10k), 5-60 mi
 not spiking more than 50% in 5 minutes, with balanced buying
 (25+ buys in 5 min, 1.0-1.5 buys per sell: winners had ~1.3, frenzies of 1.5-2.2 dumped; price rising) and no
 RugCheck red flags. It sells near graduation (~90% of the way) or if it graduates, at -25% of your
-money, or after 30 minutes. Own fake balance; tune it in `[grad]`.
+money, with a trailing stop (once your money has been up 20%, it sells if the price falls 30%
+below its high), or after 60 minutes. Own fake balance; tune it in `[grad]`.
 
 ## Fourth signal: the scalper (⚡, fake money only)
 

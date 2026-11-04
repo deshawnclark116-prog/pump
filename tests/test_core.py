@@ -763,3 +763,28 @@ def test_fresh_price_check_before_buying(tmp_path):
     finally:
         dexscreener.snapshots = real
         asyncio.run(r.http.close())
+
+
+def test_grad_trailing_stop(tmp_path):
+    import asyncio
+    from memeradar.config import Config
+    from memeradar.grad import GradPlay
+    from memeradar.store import Store
+    sent = []
+
+    async def send(text, *a):
+        sent.append(text)
+
+    class FakeHttp:
+        def __init__(self, pairs): self.pairs = pairs
+        async def get(self, url): return self.pairs
+
+    cfg = Config(db_path=str(tmp_path / "t.db"))
+    g = GradPlay(cfg, Store(cfg.db_path).db, send)
+    asyncio.run(g._buy("M", _curve_pair(120, px=0.00002), "M"))
+    asyncio.run(g.manage(FakeHttp([_curve_pair(250, px=0.00004)])))     # doubled: armed, hold
+    assert g.held
+    asyncio.run(g.manage(FakeHttp([_curve_pair(200, px=0.000032)])))    # 20% off high: hold
+    assert g.held
+    asyncio.run(g.manage(FakeHttp([_curve_pair(170, px=0.000027)])))    # 32% off high: sell
+    assert "TRAILING STOP" in sent[-1] and "✅" in sent[-1] and not g.held
