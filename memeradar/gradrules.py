@@ -16,8 +16,8 @@ class GradRules:
     max_age_minutes: float = 60.0
     max_m5_pct: float = 50.0          # skip coins that just went vertical (buying the top of a spike)
     min_buys_m5: int = 25
-    min_buy_sell_ratio: float = 1.2   # more buys than sells...
-    max_buy_sell_ratio: float = 8.0   # ...but not one-sided (fake hype)
+    min_buy_sell_ratio: float = 1.0   # buys at least match sells...
+    max_buy_sell_ratio: float = 1.5   # ...but balanced: winners had ~1.3 buys per sell; frenzies (1.5-2.2) dumped
     min_usd_per_buy: float = 0.0      # >0 skips coins whose 5-min trades average under this (off)
     stop_loss_pct: float = 25.0       # YOUR money, after fees
     max_hold_minutes: float = 30.0    # more room, since it starts further from graduation

@@ -466,7 +466,7 @@ def test_paper_books_are_separate(tmp_path):
     assert fast.cash() == 100 and slow.cash() == 90
 
 
-def _curve_pair(sol, buys=60, sells=30, vol=4000, m5=5.0, dex="pumpfun", px=0.00002, sol_usd=93.0):
+def _curve_pair(sol, buys=60, sells=45, vol=4000, m5=5.0, dex="pumpfun", px=0.00002, sol_usd=93.0):
     mc = sol * sol_usd
     return {"dexId": dex, "baseToken": {"address": "M", "symbol": "M"}, "quoteToken": {"symbol": "SOL"},
             "priceUsd": str(px), "priceNative": str(px / sol_usd), "marketCap": mc, "pairAddress": "P",
@@ -483,6 +483,8 @@ def test_grad_entry_rules(tmp_path):
     assert "outside buy zone" in g._entry_ok(_curve_pair(200), 10)              # too late
     assert "not enough demand" in g._entry_ok(_curve_pair(120, buys=40, sells=50), 10)
     assert "one-sided" in g._entry_ok(_curve_pair(120, buys=300, sells=10), 10)
+    assert "one-sided" in g._entry_ok(_curve_pair(120, buys=351, sells=157), 10)   # CUBS: 2.2 to 1 frenzy
+    assert g._entry_ok(_curve_pair(120, buys=128, sells=93), 10) == ""          # X: 1.38 to 1, won +$20
     assert g._entry_ok(_curve_pair(120, vol=50), 10) == ""                     # tiny buys allowed (filter off)
     g.r.min_usd_per_buy = 3.0
     assert "tiny bot buys" in g._entry_ok(_curve_pair(120, vol=50), 10)
