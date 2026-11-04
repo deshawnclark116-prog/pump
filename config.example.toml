@@ -129,3 +129,9 @@ buy_the_dip = true            # wait for a pullback after the burst instead of b
 dip_pct = 12.0                # buy once it's this % below its high (buyers still ahead)
 max_dip_pct = 30.0            # more than this is a dump: skip
 dip_watch_minutes = 10.0
+
+[steady_exits]                # 📈 steady climbers' own take profits/stops (YOUR money after fees)
+take_profit_levels = [15.0, 40.0, 75.0, 120.0]
+take_profit_sell_pct = [50.0, 25.0, 15.0, 10.0]
+stop_loss_pct = 15.0
+trail_after_tp_pct = 15.0

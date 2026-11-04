@@ -88,8 +88,9 @@ python -m memeradar report
 The main radar waits for a burst of new buyers. The steady signal looks for coins that are simply
 climbing, at any age: up 15–80% in the last hour, still flat-to-up in the last 5 minutes
 (not spiking), more buyers than sellers over the last 30 and 60 minutes (100+ buyers), $20k+
-liquidity and $20k+ hourly volume, not LATE/DUMPING. Same fake-hype filters and the same exit
-alerts. It has its own fake-money balance, so `python -m memeradar paper` shows both styles side by
+liquidity and $20k+ hourly volume, not LATE/DUMPING. Same fake-hype filters, with its own exits
+(`[steady_exits]`): sell half at +15%, 25% more at +40%, 15% at +75%, the rest at +120%; stop -15%;
+after the first take profit, sell the rest 15% below the high. It has its own fake-money balance, so `python -m memeradar paper` shows both styles side by
 side. Tune or switch it off in the `[steady]` section.
 
 ## Third signal: the graduation play (🎓, fake money only)

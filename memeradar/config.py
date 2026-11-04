@@ -100,7 +100,11 @@ class Config:
     weights: Weights = field(default_factory=Weights)
     safety: SafetyRules = field(default_factory=SafetyRules)
     stage: StageRules = field(default_factory=StageRules)
-    exits: ExitRules = field(default_factory=ExitRules)
+    exits: ExitRules = field(default_factory=ExitRules)          # fast radar
+    # steady climbers move slower and are bigger coins: smaller, closer take profits and stops
+    steady_exits: ExitRules = field(default_factory=lambda: ExitRules(
+        take_profit_levels=[15.0, 40.0, 75.0, 120.0], take_profit_sell_pct=[50.0, 25.0, 15.0, 10.0],
+        stop_loss_pct=15.0, trail_after_tp_pct=15.0))
     paper: PaperRules = field(default_factory=PaperRules)
     steady: SteadyRules = field(default_factory=SteadyRules)
     grad: GradRules = field(default_factory=GradRules)

@@ -295,6 +295,10 @@ class Radar:
                  sum(1 for t in self.tokens.values() if t.features), len(alerted))
         return alerted
 
+    def exit_rules(self, book: str):
+        """Each strategy can have its own take profits / stops."""
+        return self.cfg.steady_exits if book == "steady" else self.cfg.exits
+
     async def _enter(self, t: TokenState, now: float, book: str, steady_reason: str = "") -> bool:
         """Send the entry alert, start watching for exits, and make the fake buy for `book`."""
         if (t.market_cap or 0) < self.cfg.min_entry_mcap_usd:
@@ -314,8 +318,8 @@ class Radar:
             self.store.save_position(pos)
             await self._paper_note(self.books[book].buy(
                 t.chain, t.address, t.symbol, t.price_usd, mcap=t.market_cap,
-                stop_loss_pct=self.cfg.exits.stop_loss_pct,
-                first_tp_pct=min(self.cfg.exits.take_profit_levels or [0])),
+                stop_loss_pct=self.exit_rules(book).stop_loss_pct,
+                first_tp_pct=min(self.exit_rules(book).take_profit_levels or [0])),
                 t.chain, t.address, t.symbol, t.pair_address)
         return True
 
@@ -387,7 +391,7 @@ class Radar:
                 self._apply_market(t, snap)
             st = t.stage.stage if t and t.stage else None
             for sig in exits.evaluate(pos, snap.get("price_usd"), snap.get("liquidity_usd"), st,
-                                      self.cfg.exits):
+                                      self.exit_rules(pos.book)):
                 log.info("EXIT %s %s: %s", pos.symbol, sig.title, sig.detail)
                 self.store.exit_event(pos, sig)
                 await alerts.send_text(

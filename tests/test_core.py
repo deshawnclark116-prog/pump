@@ -658,3 +658,14 @@ def test_tp1_sells_half_capy(tmp_path):
     assert pos.closed
     tr.sell("solana", "C", 1.03, sig[0].title)
     assert tr.cash() > 100.5                                            # was -$0.34; now a small win
+
+
+def test_each_strategy_has_its_own_take_profits(tmp_path):
+    import asyncio
+    from memeradar.config import Config
+    from memeradar.pipeline import Radar
+    r = Radar(Config(db_path=str(tmp_path / "x.db"), enable_pumpportal=False, ntfy_topic=""))
+    assert r.exit_rules("fast").take_profit_levels[0] == 20.0
+    assert r.exit_rules("steady").take_profit_levels == [15.0, 40.0, 75.0, 120.0]
+    assert r.exit_rules("steady").stop_loss_pct == 15.0
+    asyncio.run(r.http.close())
