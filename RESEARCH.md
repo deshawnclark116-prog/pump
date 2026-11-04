@@ -22,6 +22,23 @@ current rules or prove which losses faster data would have prevented. Existing
 they must not be used as promotion evidence. This change preserves those commands
 for compatibility and adds an independent chronological simulator.
 
+The cache was subsequently exported by research audit run 41931829790. Its exact
+ledger confirms fast -$40.347257, graduation -$60.436477 and scalp -$18.114629,
+with no open positions at that saved checkpoint. It contains 116,889 snapshots.
+
+An exploratory join to the last snapshot at or before entry (maximum age 120s)
+found all 48 scalp entries matched: entries below 2x recorded run-up were 9 wins
+from 13, +$15.78; entries at 2x or above were 4 wins from 35, -$33.90. This small,
+retrospective, mixed-rule cohort is a hypothesis for a separate prospective test,
+not grounds to promote a filter or to change the frozen recovery recipe.
+Fast entries below 2x still lost $33.43 across 49 trades, so the apparent scalp
+relationship does not generalize automatically to the other strategies.
+
+Fast positions closed in under two minutes lost $51.86 across 24 trades;
+graduation positions closed in under two minutes lost $93.93 across 22 trades.
+Holding duration is a post-entry outcome: it cannot be used to select entries,
+and excluding these trades would be hindsight selection, not a strategy.
+
 ## Fixed hypothesis v1
 
 After initial buying interest, a pullback followed by recovery may distinguish a
