@@ -165,7 +165,9 @@ python -m memeradar paper
    - `smart_money`: off by default (weight 0).
 
    Then the stage multiplier is applied (see above).
-5. **Alerts and dashboard.** An **EARLY** token worth at least $10k (`min_entry_mcap_usd`; every
+5. **Alerts and dashboard.** The fast radar only takes **fresh graduates**: coins whose open-market
+   pool (not the pump.fun bonding curve) opened in the last 30 minutes with $5k+ liquidity. An
+   **EARLY** token worth at least $10k (`min_entry_mcap_usd`; every
    strategy uses this floor, because in replays coins bought under $10k lost money with every exit
    rule tried) that scores at least `alert_threshold` (0.20) is
    alerted right away. Optionally set `confirm_minutes` to watch it first: it is then alerted only if

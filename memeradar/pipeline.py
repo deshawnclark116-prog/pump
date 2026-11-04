@@ -40,6 +40,16 @@ def bot_buyers(t: TokenState, min_usd_per_buyer: float) -> str:
     return ""
 
 
+def fresh_graduate(t: TokenState, cfg) -> bool:
+    """A coin that just reached the open market: real pool (not the pump.fun bonding curve),
+    real money in it, and the pool opened within the last `fast_max_pool_age_minutes`."""
+    if not cfg.fast_fresh_only:
+        return True
+    age = t.pool_age_minutes
+    return (t.dex_id != "pumpfun" and (t.liquidity_usd or 0) >= cfg.fast_min_liquidity_usd
+            and age is not None and age <= cfg.fast_max_pool_age_minutes)
+
+
 def one_sided(t: TokenState, max_ratio: float) -> str:
     """Non-empty reason if almost nobody is selling: a sign the buying is faked or coordinated."""
     buyers = (t.buyers or {}).get("m5", 0)
@@ -351,7 +361,8 @@ class Radar:
         `confirm_minutes`. Coins that crash, lose liquidity or turn LATE/DUMPING meanwhile are
         dropped (and not re-watched for 15 min)."""
         cfg = self.cfg
-        qualifies = t.score >= cfg.alert_threshold and t.stage.stage in cfg.alert_stages
+        qualifies = (t.score >= cfg.alert_threshold and t.stage.stage in cfg.alert_stages
+                     and fresh_graduate(t, cfg))
         fake = qualifies and (bot_buyers(t, cfg.min_usd_per_buyer) or one_sided(t, cfg.max_buyers_per_seller))
         if fake:
             if now - t.candidate_cancelled_at > 15 * 60:

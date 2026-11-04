@@ -274,7 +274,8 @@ def test_wait_before_alerting(tmp_path):
     from memeradar.models import TokenState
     from memeradar.pipeline import Radar
     from memeradar.stage import StageResult
-    cfg = Config(db_path=str(tmp_path / "w.db"), enable_pumpportal=False, confirm_minutes=3.0)
+    cfg = Config(db_path=str(tmp_path / "w.db"), enable_pumpportal=False, confirm_minutes=3.0,
+                 fast_fresh_only=False)
     r = Radar(cfg)
 
     def tok(price, liq=20000, stage_name="EARLY", score=0.5):
@@ -719,3 +720,19 @@ def test_steady_v1_only_takes_coins_under_2x(tmp_path):
     assert ("solana", capy.address, "steady_v1") in r.positions
     assert r.books["steady_v1"].open_trades() and r.books["steady"].open_trades()
     asyncio.run(r.http.close())
+
+
+def test_fast_radar_fresh_graduates_only():
+    import time
+    from memeradar.config import Config
+    from memeradar.models import TokenState
+    from memeradar.pipeline import fresh_graduate
+    cfg, now = Config(), time.time()
+    starmind = TokenState(chain="solana", address="s", dex_id="pumpswap", liquidity_usd=16_700,
+                          pair_created_at=now - 4 * 60)
+    assert fresh_graduate(starmind, cfg)
+    yeti = TokenState(chain="solana", address="y", dex_id="pumpswap", liquidity_usd=17_800,
+                      pair_created_at=now - 68 * 60)                       # woke-up old coin
+    wars = TokenState(chain="solana", address="w", dex_id="pumpfun", liquidity_usd=None,
+                      pair_created_at=now - 60)                            # still on the bonding curve
+    assert not fresh_graduate(yeti, cfg) and not fresh_graduate(wars, cfg)

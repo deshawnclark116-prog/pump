@@ -72,6 +72,11 @@ class Config:
     # never alert/buy coins below this market cap: in replays of every fake buy, coins bought under
     # $10k lost money with EVERY exit rule tried; $10k+ made money with most of them.
     min_entry_mcap_usd: float = 10_000
+    # fast radar: fresh graduates only. Its winners had all just graduated (real pool, minutes old);
+    # older coins waking up and coins still on the bonding curve mostly lost.
+    fast_fresh_only: bool = True
+    fast_max_pool_age_minutes: float = 30.0
+    fast_min_liquidity_usd: float = 5_000
     alert_cooldown_minutes: int = 60
     # wait before alerting: a coin that qualifies is watched this long first, and only alerted if
     # it is still healthy (filters the "alert, then crash 1 minute later" coins)
