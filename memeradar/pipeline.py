@@ -323,10 +323,32 @@ class Radar:
         """Each strategy can have its own take profits / stops."""
         return self.cfg.steady_exits if book.startswith("steady") else self.cfg.exits
 
+    async def _fresh_price_ok(self, t: TokenState) -> bool:
+        """Re-check the live price right before buying (the signal used a 10-20 s old price).
+        BunThing: signal at $45.4k, but it was already at $37.3k -> 'bought' and stopped out 1 s later."""
+        limit = self.cfg.fresh_price_max_drop_pct
+        if not limit or not t.price_usd:
+            return True
+        try:
+            snap = (await dexscreener.snapshots(self.http, t.chain, [t.address])).get(t.address)
+        except Exception:  # noqa: BLE001  no fresh price: don't buy blind
+            return False
+        live = (snap or {}).get("price_usd")
+        if not live:
+            return False
+        drop = (1 - live / t.price_usd) * 100
+        if drop > limit:
+            log.info("not buying %s: already %.0f%% below the signal price", t.symbol, drop)
+            return False
+        self._apply_market(t, snap)            # buy (and alert) at the live price
+        return True
+
     async def _enter(self, t: TokenState, now: float, book: str, steady_reason: str = "") -> bool:
         """Send the entry alert, start watching for exits, and make the fake buy for `book`."""
         if (t.market_cap or 0) < self.cfg.min_entry_mcap_usd:
             return False                       # too small: these lose with every exit rule
+        if not await self._fresh_price_ok(t):
+            return False
         quiet = book in self.QUIET_BOOKS
         if quiet:
             if now - self.last_entry.get(t.key + (book,), 0) <= self.cfg.alert_cooldown_minutes * 60:

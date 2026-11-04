@@ -21,6 +21,7 @@ min_entry_mcap_usd = 10000      # never alert/buy under this market cap (they lo
 fast_fresh_only = true          # fast radar: only coins that just graduated (real pool)...
 fast_max_pool_age_minutes = 30  # ...opened within this many minutes
 fast_min_liquidity_usd = 5000
+fresh_price_max_drop_pct = 10.0 # re-check the live price before buying; skip if it already fell this much
 alert_stages = ["EARLY"]       # add "RUNNING" for more (later, riskier) alerts
 alert_cooldown_minutes = 60
 confirm_minutes = 0.0          # watch a qualifying coin this long before alerting (0 = alert right away)

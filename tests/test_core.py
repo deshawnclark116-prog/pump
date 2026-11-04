@@ -700,7 +700,8 @@ def test_steady_v1_only_takes_coins_under_2x(tmp_path):
         t.stage = StageResult("RUNNING", runup, 0.09, 0.4, [])
         return t
 
-    cfg = Config(db_path=str(tmp_path / "v1.db"), enable_pumpportal=False, ntfy_topic="")
+    cfg = Config(db_path=str(tmp_path / "v1.db"), enable_pumpportal=False, ntfy_topic="",
+                 fresh_price_max_drop_pct=0)                            # no network in this test
     capy, mag = coin(1.7), coin(2.8)
     assert qualifies(capy, cfg.steady) and qualifies(mag, cfg.steady)          # plain steady takes both
     assert "1.7x since launch" in qualifies(capy, cfg.steady_v1)
@@ -736,3 +737,28 @@ def test_fast_radar_fresh_graduates_only():
     wars = TokenState(chain="solana", address="w", dex_id="pumpfun", liquidity_usd=None,
                       pair_created_at=now - 60)                            # still on the bonding curve
     assert not fresh_graduate(yeti, cfg) and not fresh_graduate(wars, cfg)
+
+
+def test_fresh_price_check_before_buying(tmp_path):
+    import asyncio, time
+    from memeradar.config import Config
+    from memeradar.models import TokenState
+    from memeradar.pipeline import Radar
+    from memeradar.sources import dexscreener
+    r = Radar(Config(db_path=str(tmp_path / "f.db"), enable_pumpportal=False, ntfy_topic=""))
+    real = dexscreener.snapshots
+    try:
+        async def stale(http, chain, addrs):              # BunThing: signal $45.4k, live $37.3k
+            return {"B": {"price_usd": 0.00003731, "market_cap": 37_300}}
+        dexscreener.snapshots = stale
+        bun = TokenState(chain="solana", address="B", symbol="B", price_usd=0.00004538, market_cap=45_400)
+        assert asyncio.run(r._fresh_price_ok(bun)) is False and bun.price_usd == 0.00004538
+
+        async def small_dip(http, chain, addrs):          # 5% lower: still buy, at the live price
+            return {"C": {"price_usd": 0.95, "market_cap": 95_000}}
+        dexscreener.snapshots = small_dip
+        c = TokenState(chain="solana", address="C", symbol="C", price_usd=1.0, market_cap=100_000)
+        assert asyncio.run(r._fresh_price_ok(c)) is True and c.price_usd == 0.95
+    finally:
+        dexscreener.snapshots = real
+        asyncio.run(r.http.close())

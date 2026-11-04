@@ -75,6 +75,9 @@ class Config:
     # fast radar: fresh graduates only. Its winners had all just graduated (real pool, minutes old);
     # older coins waking up and coins still on the bonding curve mostly lost.
     fast_fresh_only: bool = True
+    # right before any fast/steady buy, re-check the live price: the signal's price can be 10-20 s
+    # old. Skip if it has already dropped this much since the signal; otherwise buy at the live price.
+    fresh_price_max_drop_pct: float = 10.0
     fast_max_pool_age_minutes: float = 30.0
     fast_min_liquidity_usd: float = 5_000
     alert_cooldown_minutes: int = 60
