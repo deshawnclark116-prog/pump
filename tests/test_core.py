@@ -464,3 +464,52 @@ def test_paper_books_are_separate(tmp_path):
     fast, slow = PaperTrader(db, PaperRules()), PaperTrader(db, PaperRules(), "paper_trades_steady", "steady")
     assert "PAPER (steady) BUY" in slow.buy("solana", "a", "A", 1.0)
     assert fast.cash() == 100 and slow.cash() == 90
+
+
+def _curve_pair(sol, buys=60, sells=30, vol=4000, m5=5.0, dex="pumpfun", px=0.00002, sol_usd=93.0):
+    mc = sol * sol_usd
+    return {"dexId": dex, "baseToken": {"address": "M", "symbol": "M"}, "quoteToken": {"symbol": "SOL"},
+            "priceUsd": str(px), "priceNative": str(px / sol_usd), "marketCap": mc, "pairAddress": "P",
+            "txns": {"m5": {"buys": buys, "sells": sells}}, "volume": {"m5": vol}, "priceChange": {"m5": m5}}
+
+
+def test_grad_entry_rules(tmp_path):
+    from memeradar.config import Config
+    from memeradar.grad import GradPlay
+    from memeradar.store import Store
+    g = GradPlay(Config(db_path=str(tmp_path / "g.db")), Store(str(tmp_path / "g.db")).db, None)
+    assert g._entry_ok(_curve_pair(200), age_min=10) == ""                       # ~49% of the way, healthy
+    assert "outside buy zone" in g._entry_ok(_curve_pair(100), 10)              # too early
+    assert "outside buy zone" in g._entry_ok(_curve_pair(300), 10)              # too late
+    assert "not enough demand" in g._entry_ok(_curve_pair(200, buys=40, sells=50), 10)
+    assert "one-sided" in g._entry_ok(_curve_pair(200, buys=300, sells=10), 10)
+    assert "tiny bot buys" in g._entry_ok(_curve_pair(200, vol=50), 10)
+    assert "not rising" in g._entry_ok(_curve_pair(200, m5=-2), 10)
+    assert "too old" in g._entry_ok(_curve_pair(200), 90)
+    assert "bonding curve" in g._entry_ok(_curve_pair(200, dex="pumpswap"), 10)
+
+
+def test_grad_sells_near_graduation_and_on_stop(tmp_path):
+    import asyncio
+    from memeradar.config import Config
+    from memeradar.grad import GradPlay
+    from memeradar.store import Store
+    sent = []
+
+    async def send(text, *a):
+        sent.append(text)
+
+    class FakeHttp:
+        def __init__(self, pairs): self.pairs = pairs
+        async def get(self, url): return self.pairs
+
+    cfg = Config(db_path=str(tmp_path / "s.db"))
+    g = GradPlay(cfg, Store(cfg.db_path).db, send)
+    asyncio.run(g._buy("M", _curve_pair(200, px=0.00002), "M"))
+    assert "PAPER (grad) BUY" in sent[0] and "graduation play" in sent[0]
+    asyncio.run(g.manage(FakeHttp([_curve_pair(380, px=0.00004)])))            # ~93% of the way: sell
+    assert "NEAR GRADUATION" in sent[-1] and "✅" in sent[-1] and not g.held
+    g.seen_buy.clear()
+    asyncio.run(g._buy("M", _curve_pair(200, px=0.00002), "M"))
+    asyncio.run(g.manage(FakeHttp([_curve_pair(140, px=0.000014)])))           # -30% coin: stop
+    assert "STOP LOSS" in sent[-1] and "❌" in sent[-1]

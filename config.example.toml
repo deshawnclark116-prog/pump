@@ -88,3 +88,17 @@ max_h6_change_pct = 300.0
 min_liquidity_usd = 20000
 min_volume_h1_usd = 20000
 min_buyers_h1 = 100
+
+[grad]                        # 🎓 third signal: pump.fun graduation play (own fake balance)
+enabled = true
+graduation_sol = 410.0        # market cap (SOL) where a coin graduates
+buy_min_sol = 160.0           # buy between ~40%...
+buy_max_sol = 230.0           # ...and ~55% of the way
+sell_at_sol = 370.0           # sell at ~90%, before the graduation dump
+max_age_minutes = 60.0
+min_buys_m5 = 25
+min_buy_sell_ratio = 1.2
+max_buy_sell_ratio = 8.0
+min_usd_per_buy = 3.0
+stop_loss_pct = 25.0          # YOUR money after fees
+max_hold_minutes = 20.0

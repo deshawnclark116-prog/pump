@@ -91,6 +91,15 @@ liquidity and $20k+ hourly volume, not LATE/DUMPING. Same fake-hype filters and 
 alerts. It has its own fake-money balance, so `python -m memeradar paper` shows both styles side by
 side. Tune or switch it off in the `[steady]` section.
 
+## Third signal: the graduation play (🎓, fake money only)
+
+Every pump.fun coin starts on a bonding curve at ~28 SOL market cap and graduates to the open market
+at ~410 SOL. This strategy follows every new launch (free PumpPortal feed + DexScreener prices) and
+fake-buys coins that are 40-55% of the way there, under an hour old, with real two-sided buying
+(25+ buys in 5 min, more buys than sells but not one-sided, no tiny bot buys, price rising) and no
+RugCheck red flags. It sells near graduation (~90% of the way) or if it graduates, at -25% of your
+money, or after 20 minutes. Own fake balance; tune it in `[grad]`.
+
 ## Fake-money trading (paper mode)
 
 Every entry alert also makes a pretend $10 buy and then does exactly what the exit alerts above

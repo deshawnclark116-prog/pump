@@ -53,7 +53,9 @@ def paper_report(cfg) -> None:
     db = Store(cfg.db_path).db
     for title, trader in (("FAST RADAR", PaperTrader(db, cfg.paper)),
                           ("STEADY CLIMBERS", PaperTrader(db, cfg.paper, table="paper_trades_steady",
-                                                          label="steady"))):
+                                                          label="steady")),
+                          ("GRADUATION PLAY", PaperTrader(db, cfg.paper, table="paper_trades_grad",
+                                                          label="grad"))):
         print(f"===== {title}")
         _paper_book(trader)
 
