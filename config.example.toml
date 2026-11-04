@@ -16,7 +16,7 @@ min_volume_h1_usd = 10000
 min_liquidity_usd = 3000
 early_min_volume_m5_usd = 3000   # fast lane: a burst in the last 5 min gets checked right away
 
-alert_threshold = 0.40
+alert_threshold = 0.20
 alert_stages = ["EARLY"]       # add "RUNNING" for more (later, riskier) alerts
 alert_cooldown_minutes = 60
 confirm_minutes = 0.0          # watch a qualifying coin this long before alerting (0 = alert right away)
@@ -78,8 +78,8 @@ max_open = 5                  # most coins held at once
 
 [steady]                      # 📈 second signal: steady climbers (own fake balance)
 enabled = true
-min_age_minutes = 30
-max_age_hours = 24
+min_age_minutes = 0           # 0 = any age (age only matters for the fast radar)
+max_age_hours = 0             # 0 = no limit
 min_h1_change_pct = 15.0      # up at least this % in the last hour
 max_h1_change_pct = 80.0      # ...but not a rocket
 min_m5_change_pct = -3.0      # still holding up in the last 5 min
@@ -92,8 +92,8 @@ min_buyers_h1 = 100
 [grad]                        # 🎓 third signal: pump.fun graduation play (own fake balance)
 enabled = true
 graduation_sol = 410.0        # market cap (SOL) where a coin graduates
-buy_min_sol = 160.0           # buy between ~40%...
-buy_max_sol = 230.0           # ...and ~55% of the way
+buy_min_sol = 70.0            # buy between ~17%...
+buy_max_sol = 160.0           # ...and ~40% of the way
 sell_at_sol = 370.0           # sell at ~90%, before the graduation dump
 max_age_minutes = 60.0
 min_buys_m5 = 25
@@ -101,4 +101,4 @@ min_buy_sell_ratio = 1.2
 max_buy_sell_ratio = 8.0
 min_usd_per_buy = 0.0         # >0 skips coins with tiny average trades (off)
 stop_loss_pct = 25.0          # YOUR money after fees
-max_hold_minutes = 20.0
+max_hold_minutes = 30.0

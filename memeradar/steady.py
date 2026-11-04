@@ -17,8 +17,8 @@ from .stage import DUMPING, LATE
 @dataclass
 class SteadyRules:
     enabled: bool = True
-    min_age_minutes: float = 30
-    max_age_hours: float = 24
+    min_age_minutes: float = 0           # 0 = any age (age only matters for the fast radar)
+    max_age_hours: float = 0             # 0 = no limit
     min_h1_change_pct: float = 15.0      # up at least this much in the last hour...
     max_h1_change_pct: float = 80.0      # ...but not a rocket (that's the fast radar's job / too late)
     min_m5_change_pct: float = -3.0      # still holding up in the last 5 minutes
@@ -34,7 +34,9 @@ def qualifies(t: TokenState, r: SteadyRules) -> str:
     if not r.enabled or not t.price_usd:
         return ""
     age = t.age_minutes
-    if age is None or age < r.min_age_minutes or age > r.max_age_hours * 60:
+    if r.min_age_minutes and (age is None or age < r.min_age_minutes):
+        return ""
+    if r.max_age_hours and age is not None and age > r.max_age_hours * 60:
         return ""
     if t.stage and t.stage.stage in (LATE, DUMPING):
         return ""

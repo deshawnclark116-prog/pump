@@ -67,7 +67,7 @@ class Config:
     early_min_volume_m5_usd: float = 3_000
 
     # alerting
-    alert_threshold: float = 0.40
+    alert_threshold: float = 0.20
     alert_cooldown_minutes: int = 60
     # wait before alerting: a coin that qualifies is watched this long first, and only alerted if
     # it is still healthy (filters the "alert, then crash 1 minute later" coins)

@@ -454,7 +454,7 @@ def test_steady_climber_signal():
     assert qualifies(coin(price_change={"m5": 2, "h1": 5, "h6": 20}), r) == ""       # not climbing
     assert qualifies(coin(sellers={"m5": 30, "m15": 90, "m30": 250, "h1": 300}), r) == ""  # sellers winning
     assert qualifies(coin(liquidity_usd=8_000), r) == ""                              # too thin
-    assert qualifies(coin(pair_created_at=time.time() - 3 * 86400), r) == ""          # too old
+    assert qualifies(coin(pair_created_at=time.time() - 3 * 86400), r)                # age doesn't matter
 
 
 def test_paper_books_are_separate(tmp_path):
@@ -478,18 +478,18 @@ def test_grad_entry_rules(tmp_path):
     from memeradar.grad import GradPlay
     from memeradar.store import Store
     g = GradPlay(Config(db_path=str(tmp_path / "g.db")), Store(str(tmp_path / "g.db")).db, None)
-    assert g._entry_ok(_curve_pair(200), age_min=10) == ""                       # ~49% of the way, healthy
-    assert "outside buy zone" in g._entry_ok(_curve_pair(100), 10)              # too early
-    assert "outside buy zone" in g._entry_ok(_curve_pair(300), 10)              # too late
-    assert "not enough demand" in g._entry_ok(_curve_pair(200, buys=40, sells=50), 10)
-    assert "one-sided" in g._entry_ok(_curve_pair(200, buys=300, sells=10), 10)
-    assert g._entry_ok(_curve_pair(200, vol=50), 10) == ""                     # tiny buys allowed (filter off)
+    assert g._entry_ok(_curve_pair(120), age_min=10) == ""                       # ~29% of the way, healthy
+    assert "outside buy zone" in g._entry_ok(_curve_pair(50), 10)               # too early
+    assert "outside buy zone" in g._entry_ok(_curve_pair(200), 10)              # too late
+    assert "not enough demand" in g._entry_ok(_curve_pair(120, buys=40, sells=50), 10)
+    assert "one-sided" in g._entry_ok(_curve_pair(120, buys=300, sells=10), 10)
+    assert g._entry_ok(_curve_pair(120, vol=50), 10) == ""                     # tiny buys allowed (filter off)
     g.r.min_usd_per_buy = 3.0
-    assert "tiny bot buys" in g._entry_ok(_curve_pair(200, vol=50), 10)
+    assert "tiny bot buys" in g._entry_ok(_curve_pair(120, vol=50), 10)
     g.r.min_usd_per_buy = 0.0
-    assert "not rising" in g._entry_ok(_curve_pair(200, m5=-2), 10)
-    assert "too old" in g._entry_ok(_curve_pair(200), 90)
-    assert "bonding curve" in g._entry_ok(_curve_pair(200, dex="pumpswap"), 10)
+    assert "not rising" in g._entry_ok(_curve_pair(120, m5=-2), 10)
+    assert "too old" in g._entry_ok(_curve_pair(120), 90)
+    assert "bonding curve" in g._entry_ok(_curve_pair(120, dex="pumpswap"), 10)
 
 
 def test_grad_sells_near_graduation_and_on_stop(tmp_path):

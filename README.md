@@ -85,7 +85,7 @@ python -m memeradar report
 ## Second signal: steady climbers (📈 STEADY)
 
 The main radar waits for a burst of new buyers. The steady signal looks for coins that are simply
-climbing: 30 min to 24 h old, up 15–80% in the last hour, still flat-to-up in the last 5 minutes
+climbing, at any age: up 15–80% in the last hour, still flat-to-up in the last 5 minutes
 (not spiking), more buyers than sellers over the last 30 and 60 minutes (100+ buyers), $20k+
 liquidity and $20k+ hourly volume, not LATE/DUMPING. Same fake-hype filters and the same exit
 alerts. It has its own fake-money balance, so `python -m memeradar paper` shows both styles side by
@@ -95,10 +95,10 @@ side. Tune or switch it off in the `[steady]` section.
 
 Every pump.fun coin starts on a bonding curve at ~28 SOL market cap and graduates to the open market
 at ~410 SOL. This strategy follows every new launch (free PumpPortal feed + DexScreener prices) and
-fake-buys coins that are 40-55% of the way there, under an hour old, with real two-sided buying
+fake-buys coins as early as ~17-40% of the way there, under an hour old, with real two-sided buying
 (25+ buys in 5 min, more buys than sells but not one-sided, price rising) and no
 RugCheck red flags. It sells near graduation (~90% of the way) or if it graduates, at -25% of your
-money, or after 20 minutes. Own fake balance; tune it in `[grad]`.
+money, or after 30 minutes. Own fake balance; tune it in `[grad]`.
 
 ## Fake-money trading (paper mode)
 
@@ -143,7 +143,7 @@ python -m memeradar paper
    - `smart_money`: off by default (weight 0).
 
    Then the stage multiplier is applied (see above).
-5. **Alerts and dashboard.** An **EARLY** token that scores at least `alert_threshold` (0.40) is
+5. **Alerts and dashboard.** An **EARLY** token that scores at least `alert_threshold` (0.20) is
    alerted right away. Optionally set `confirm_minutes` to watch it first: it is then alerted only if
    it is still healthy (price not down 15%+, liquidity not pulled, not LATE/DUMPING, score held),
    which skips coins that crash right after qualifying but also buys later. Coins with more than 5
