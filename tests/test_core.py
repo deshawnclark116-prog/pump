@@ -335,7 +335,7 @@ def test_take_profit_ladder(tmp_path):
     from memeradar.exits import ExitRules, Position, evaluate
     from memeradar.paper import PaperRules, PaperTrader, cost_factor
     from memeradar.store import Store
-    rules, pr = ExitRules(take_profit_levels=[50.0, 100.0, 200.0, 300.0]), PaperRules()
+    rules, pr = ExitRules(take_profit_levels=[50.0, 100.0, 200.0, 300.0], stop_steps_behind=0), PaperRules()
     cf = cost_factor(pr)
     tr = PaperTrader(Store(str(tmp_path / "ladder.db")).db, pr)
 
@@ -388,8 +388,22 @@ def test_first_take_profit_is_plus_20_by_default():
                    entry_price=1.0, peak_price=1.0, cost_factor=cost_factor(PaperRules()))
     assert evaluate(pos, 1.25, None, None, ExitRules(), now=1) == []      # coin +25% = money ~+17%
     sig = evaluate(pos, 1.30, None, None, ExitRules(), now=2)             # money ~+22%
-    assert sig[0].title == "TAKE PROFIT 1" and "+20%" in sig[0].detail and sig[0].sell_pct == 0
-    assert evaluate(pos, 1.27, None, None, ExitRules(), now=3)[0].title == "STOP LOSS"   # back under +20%
+    assert sig[0].title == "TAKE PROFIT 1" and "+0%" in sig[0].detail and sig[0].sell_pct == 0
+    assert evaluate(pos, 1.12, None, None, ExitRules(), now=3) == []      # money ~+5%: still above break-even
+    assert evaluate(pos, 1.05, None, None, ExitRules(), now=4)[0].title == "STOP LOSS"   # under break-even
+
+
+def test_stop_trails_one_step_behind():
+    from memeradar.exits import ExitRules, Position, evaluate
+    pos = Position(chain="solana", address="a", symbol="A", pair_address="p", entry_ts=0,
+                   entry_price=1.0, peak_price=1.0)                     # no fees: money = coin
+    r = ExitRules()
+    evaluate(pos, 1.25, None, None, r, now=1)                             # TP1 -> stop 0%
+    sig = evaluate(pos, 2.1, None, None, r, now=2)                        # TP2 -> sell 50%, stop +20%
+    assert sig[0].sell_pct == 50 and "stop moves up to +20%" in sig[0].detail
+    assert evaluate(pos, 1.3, None, None, r, now=3) == []                 # +30%: still above +20%
+    assert evaluate(pos, 1.19, None, None, r, now=4)[0].title == "STOP LOSS"
+
 
 
 def test_rugcheck_insider_groups_combined():

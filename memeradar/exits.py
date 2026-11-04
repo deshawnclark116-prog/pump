@@ -2,12 +2,12 @@
 
 Take profits are measured on YOUR MONEY after buy/sell fees and slippage, not the coin price:
 
-  🟠 TAKE PROFIT 1  +20%:  don't sell. Your stop loss moves up to +20% (this trade is now locked in)
+  🟠 TAKE PROFIT 1  +20%:  don't sell. Your stop loss moves up to break-even (0%)
   🟢 TAKE PROFIT 2  +100%: sell 50%
   🟢 TAKE PROFIT 3  +200%: sell 25% more
   🟢 TAKE PROFIT 4  +300%: sell the last 25%
   🔴 STOP LOSS      after a take profit, your money fell back to that take profit's level
-                    (the stop moves up with each one: +20%, then +100%, then +200%): sell everything left
+                    (the stop trails one step behind: 0% after TP1, +20% after TP2, +100% after TP3)
 
   🟠 FADING        the coin's stage turned LATE (buyers drying up / well off its high)
   🔴 GET OUT       dropped 15% from its high since the alert (trailing stop)
@@ -30,6 +30,9 @@ class ExitRules:
     take_profit_levels: list[float] = field(default_factory=lambda: [20.0, 100.0, 200.0, 300.0])  # YOUR money
     # % of the ORIGINAL position to sell at each level above (0 = sell nothing, just lock in)
     take_profit_sell_pct: list[float] = field(default_factory=lambda: [0.0, 50.0, 25.0, 25.0])
+    # after a take profit the stop moves up to the PREVIOUS level (0 = break-even after TP1), so a
+    # normal dip right after a take profit doesn't sell a coin that keeps running. 0 = stop AT the level.
+    stop_steps_behind: int = 1
     trailing_stop_pct: float = 15.0     # % drop from the high since the alert
     trailing_arm_pct: float = 10.0      # trailing stop only arms once it's been up this much
     stop_loss_pct: float = 20.0         # % of YOUR money lost (after fees), not just the coin price
@@ -74,6 +77,15 @@ class ExitSignal:
     sell_pct: float = 0.0   # take profit: % of the ORIGINAL position to sell now
 
 
+def stop_level(pos: "Position", rules: ExitRules) -> float | None:
+    """Where the raised stop sits (YOUR money %), or None before the first take profit."""
+    if not pos.tp_hit:
+        return None
+    levels = [0.0] + sorted(rules.take_profit_levels)
+    i = levels.index(max(pos.tp_hit)) if max(pos.tp_hit) in levels else len(levels) - 1
+    return levels[max(0, i - rules.stop_steps_behind)]
+
+
 def evaluate(pos: Position, price: float | None, liquidity: float | None, stage: str | None,
              rules: ExitRules, now: float | None = None) -> list[ExitSignal]:
     """Update the position with the latest data and return any exit signals to send."""
@@ -93,13 +105,13 @@ def evaluate(pos: Position, price: float | None, liquidity: float | None, stage:
         out.append(ExitSignal("red", title, detail))
 
     # --- red: get out (first match wins, then the watch ends)
-    locked = max(pos.tp_hit) if pos.tp_hit else None   # each take profit moves the stop up to its level
+    locked = stop_level(pos, rules)                    # each take profit moves the stop up
     if pos.entry_liquidity and liquidity is not None and \
             liquidity <= pos.entry_liquidity * (1 - rules.liquidity_drop_pct / 100):
         close("RUG WARNING", f"pool liquidity down {100 - liquidity / pos.entry_liquidity * 100:.0f}% since alert")
     elif locked is not None:
         if money <= locked:
-            close("STOP LOSS", f"your money fell back to +{locked:.0f}% (your locked-in stop): "
+            close("STOP LOSS", f"your money fell back to {locked:+.0f}% (your raised stop): "
                                f"sell everything left (now {money:+.0f}%)")
     elif money <= -rules.stop_loss_pct:
         close("STOP LOSS", f"your money {money:+.0f}% after fees (coin {chg:+.0f}%)")
@@ -123,8 +135,8 @@ def evaluate(pos: Position, price: float | None, liquidity: float | None, stage:
             sell = 100 - pos.sold_pct                  # last level: sell whatever is left
         if sell <= 0:
             out.append(ExitSignal("orange", f"TAKE PROFIT {n + 1}",
-                                  f"{gain} → don't sell yet. Stop loss moves up to +{lvl:.0f}%: "
-                                  f"this trade can't lose now"))
+                                  f"{gain} → don't sell yet. Stop loss moves up to {stop_level(pos, rules):+.0f}%: "
+                                  f"worst case now is about break-even"))
             continue
         pos.sold_pct += sell
         if pos.sold_pct >= 99.99:
@@ -133,7 +145,7 @@ def evaluate(pos: Position, price: float | None, liquidity: float | None, stage:
             return out
         out.append(ExitSignal("green", f"TAKE PROFIT {n + 1}",
                               f"{gain} → sell {sell:.0f}% of what you bought "
-                              f"({100 - pos.sold_pct:.0f}% left riding, stop moves up to +{lvl:.0f}%)", sell))
+                              f"({100 - pos.sold_pct:.0f}% left riding, stop moves up to {stop_level(pos, rules):+.0f}%)", sell))
     if stage == LATE and not pos.faded_sent:
         pos.faded_sent = True
         out.append(ExitSignal("orange", "FADING", "buyers drying up / move looks tired"))
