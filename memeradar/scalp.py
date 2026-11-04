@@ -1,7 +1,8 @@
 """Fourth strategy: the scalper (fake money only).
 
 Quick in-and-out trades. It looks at every coin the radar is already scoring (safety-checked),
-buys any that are moving up RIGHT NOW with real two-sided buying, takes a small profit fast and
+spots any that are moving up RIGHT NOW with real two-sided buying, then (buy the dip) waits for the
+first pullback off the high instead of buying the burst, takes a small profit fast and
 gets out, and never holds long. It can trade the same coin again after a short cooldown.
 
   BUY   price up `min_m5_pct`..`max_m5_pct` in the last 5 min (moving, not already spiked), enough
@@ -44,6 +45,13 @@ class ScalpRules:
     start_balance_usd: float = 100.0
     trade_usd: float = 10.0
     max_open: int = 5
+    # buy the dip: when a coin qualifies, don't buy the burst. Watch it, and buy only after it pulls
+    # back `dip_pct` from its high while buyers are still ahead of sellers. Give up if it falls more
+    # than `max_dip_pct` (that's a dump, not a dip) or no dip comes within `dip_watch_minutes`.
+    buy_the_dip: bool = True
+    dip_pct: float = 12.0
+    max_dip_pct: float = 30.0
+    dip_watch_minutes: float = 10.0
 
 
 def qualifies(t: TokenState, r: ScalpRules) -> str:
@@ -69,6 +77,14 @@ def qualifies(t: TokenState, r: ScalpRules) -> str:
 
 
 @dataclass
+class _Watch:
+    token: TokenState          # live object: the radar keeps refreshing its buyers/sellers
+    why: str
+    start_ts: float
+    high: float
+
+
+@dataclass
 class _Hold:
     symbol: str
     chain: str
@@ -86,6 +102,7 @@ class Scalper:
         self.cf = cost_factor(self.rules)
         self.send = send                                  # async (text, chain, address, symbol, pair)
         self.held: dict[str, _Hold] = {}
+        self.watching: dict[str, _Watch] = {}
         self.last_exit: dict[str, float] = {}
         for row in self.book.open_trades():
             self.held[row["address"]] = _Hold(row["symbol"], row["chain"], row["entry_ts"],
@@ -95,25 +112,58 @@ class Scalper:
         return (price / h.entry_price * self.cf - 1) * 100
 
     async def consider(self, t: TokenState) -> None:
-        if t.address in self.held or time.time() - self.last_exit.get(t.address, 0) < self.r.cooldown_minutes * 60:
+        if t.address in self.held or t.address in self.watching or \
+                time.time() - self.last_exit.get(t.address, 0) < self.r.cooldown_minutes * 60:
             return
         why = qualifies(t, self.r)
         if not why:
             return
-        msg = self.book.buy(t.chain, t.address, t.symbol, t.price_usd, mcap=t.market_cap)
+        if self.r.buy_the_dip:
+            self.watching[t.address] = _Watch(t, why, time.time(), t.price_usd)
+            log.info("scalp: watching %s for a %.0f%% dip", t.symbol, self.r.dip_pct)
+            return
+        await self._buy(t, t.price_usd, f"⚡ scalp: {why}")
+
+    async def _buy(self, t: TokenState, price: float, note: str) -> None:
+        msg = self.book.buy(t.chain, t.address, t.symbol, price,
+                            mcap=(t.market_cap or 0) * price / t.price_usd if t.price_usd else t.market_cap)
         if not msg or "skipped" in msg:
             return
-        self.held[t.address] = _Hold(t.symbol, t.chain, time.time(), t.price_usd, t.pair_address or "")
-        await self.send(msg + f"\n⚡ scalp: {why}\nsells at +{self.r.take_profit_pct:.0f}% or "
+        self.held[t.address] = _Hold(t.symbol, t.chain, time.time(), price, t.pair_address or "")
+        await self.send(msg + f"\n{note}\nsells at +{self.r.take_profit_pct:.0f}% or "
                         f"-{self.r.stop_loss_pct:.0f}% of your money, or after {self.r.max_hold_minutes:.0f} min",
                         t.chain, t.address, t.symbol, t.pair_address)
 
+    async def _check_dips(self, prices: dict[str, float]) -> None:
+        now = time.time()
+        for addr, w in list(self.watching.items()):
+            px = prices.get(addr)
+            if now - w.start_ts > self.r.dip_watch_minutes * 60:
+                self.watching.pop(addr, None)                      # no dip came: let it go
+                continue
+            if not px:
+                continue
+            w.high = max(w.high, px)
+            off = (1 - px / w.high) * 100
+            if off > self.r.max_dip_pct:
+                log.info("scalp: %s fell %.0f%% from its high, that's a dump: skip", w.token.symbol, off)
+                self.watching.pop(addr, None)
+                self.last_exit[addr] = now
+                continue
+            b, s = (w.token.buyers or {}).get("m5", 0), (w.token.sellers or {}).get("m5", 0)
+            if off >= self.r.dip_pct and b > s:
+                self.watching.pop(addr, None)
+                await self._buy(w.token, px, f"⚡ scalp (bought the dip): {off:.0f}% below its high, "
+                                             f"buyers still ahead ({b} vs {s})\nwhy it was watched: {w.why}")
+
     async def manage(self, http) -> None:
-        if not self.held:
+        if not self.held and not self.watching:
             return
         by_chain: dict[str, list[str]] = {}
         for addr, h in self.held.items():
             by_chain.setdefault(h.chain, []).append(addr)
+        for addr, w in self.watching.items():
+            by_chain.setdefault(w.token.chain, []).append(addr)
         prices: dict[str, float] = {}
         pairs: dict[str, str] = {}
         for chain, addrs in by_chain.items():
@@ -122,7 +172,7 @@ class Scalper:
                 for p in data if isinstance(data, list) else []:
                     a = (p.get("baseToken") or {}).get("address")
                     liq = float((p.get("liquidity") or {}).get("usd") or 0)
-                    if a in self.held and (a not in prices or liq > pairs.get(a + "#liq", 0)):
+                    if (a in self.held or a in self.watching) and (a not in prices or liq > pairs.get(a + "#liq", 0)):
                         try:
                             prices[a] = float(p.get("priceUsd") or 0)
                         except ValueError:
@@ -143,3 +193,4 @@ class Scalper:
                 self.last_exit[addr] = now
                 if msg:
                     await self.send(msg, h.chain, addr, h.symbol, h.pair or pairs.get(addr, ""))
+        await self._check_dips(prices)

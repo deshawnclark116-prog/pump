@@ -104,7 +104,10 @@ money, or after 30 minutes. Own fake balance; tune it in `[grad]`.
 
 ## Fourth signal: the scalper (⚡, fake money only)
 
-Quick in-and-out trades on any safety-checked coin the radar is tracking: it buys when the price is
+Quick in-and-out trades on any safety-checked coin the radar is tracking. **Buy the dip:** when a
+coin bursts, it doesn't buy the burst; it watches for up to 10 minutes and buys the first pullback
+of 12% off the high while buyers are still ahead of sellers (a drop of more than 30% is treated as a
+dump and skipped). A burst means the price is
 up 3–25% in the last 5 minutes with 30+ buyers, more buyers than sellers (but not one-sided),
 $5k+ traded in 5 minutes and $15k+ liquidity, and the coin isn't LATE/DUMPING. It sells at +15% of
 your money after fees, at -10%, or after 10 minutes no matter what, and can scalp the same coin

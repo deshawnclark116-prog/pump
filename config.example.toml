@@ -125,3 +125,7 @@ cooldown_minutes = 15.0       # before scalping the same coin again
 slippage_pct = 0.5
 trade_usd = 10.0
 max_open = 5
+buy_the_dip = true            # wait for a pullback after the burst instead of buying the burst
+dip_pct = 12.0                # buy once it's this % below its high (buyers still ahead)
+max_dip_pct = 30.0            # more than this is a dump: skip
+dip_watch_minutes = 10.0

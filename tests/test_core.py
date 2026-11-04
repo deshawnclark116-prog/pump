@@ -557,6 +557,7 @@ def test_scalper_in_and_out(tmp_path):
             return [{"baseToken": {"address": "S"}, "priceUsd": str(self.px), "pairAddress": "P", "liquidity": {"usd": 3e4}}]
 
     cfg = Config(db_path=str(tmp_path / "sc.db"))
+    cfg.scalp.buy_the_dip = False                                        # this test: buy the burst
     s = Scalper(cfg.scalp, cfg.paper, Store(cfg.db_path).db, send)
     asyncio.run(s.consider(coin()))
     assert "PAPER (scalp) BUY" in sent[-1] and "⚡ scalp" in sent[-1]
@@ -596,3 +597,44 @@ def test_fast_radar_skips_coins_under_10k(tmp_path):
     tiny = TokenState(chain="solana", address="t", symbol="T", price_usd=0.0000026, market_cap=2_600)
     assert asyncio.run(r._enter(tiny, 1000.0, "fast")) is False and not r.positions
     asyncio.run(r.http.close())
+
+
+def test_scalper_buys_the_dip(tmp_path):
+    import asyncio
+    from memeradar.config import Config
+    from memeradar.models import Safety, TokenState
+    from memeradar.scalp import Scalper
+    from memeradar.stage import StageResult
+    from memeradar.store import Store
+
+    def coin(addr="D"):
+        t = TokenState(chain="solana", address=addr, symbol=addr, price_usd=1.0, liquidity_usd=30_000,
+                       vol_m5=12_000, market_cap=120_000, price_change={"m5": 8},
+                       buyers={"m5": 90}, sellers={"m5": 50}, pair_address="P")
+        t.safety, t.stage = Safety(passed=True), StageResult("RUNNING", 1.5, 0.0, 1.0, [])
+        return t
+
+    sent = []
+
+    async def send(text, *a):
+        sent.append(text)
+
+    class FakeHttp:
+        def __init__(self, px): self.px = px
+        async def get(self, url):
+            return [{"baseToken": {"address": a}, "priceUsd": str(p), "pairAddress": "P",
+                     "liquidity": {"usd": 3e4}} for a, p in self.px.items()]
+
+    cfg = Config(db_path=str(tmp_path / "dip.db"))
+    s = Scalper(cfg.scalp, cfg.paper, Store(cfg.db_path).db, send)
+    asyncio.run(s.consider(coin()))
+    assert not sent and "D" in s.watching                                # burst: watch, don't buy
+    asyncio.run(s.manage(FakeHttp({"D": 1.20})))                          # keeps running: new high
+    asyncio.run(s.manage(FakeHttp({"D": 1.10})))                          # 8% off: not a dip yet
+    assert not sent
+    asyncio.run(s.manage(FakeHttp({"D": 1.04})))                          # 13% off the 1.20 high: buy
+    assert "bought the dip" in sent[-1] and "D" in s.held and "D" not in s.watching
+    # a crash isn't a dip
+    asyncio.run(s.consider(coin("X")))
+    asyncio.run(s.manage(FakeHttp({"X": 0.6, "D": 1.04})))                # -40%: dump, skip
+    assert "X" not in s.watching and "X" not in s.held
