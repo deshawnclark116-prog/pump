@@ -669,3 +669,13 @@ def test_each_strategy_has_its_own_take_profits(tmp_path):
     assert r.exit_rules("steady").take_profit_levels == [15.0, 40.0, 75.0, 120.0]
     assert r.exit_rules("steady").stop_loss_pct == 15.0
     asyncio.run(r.http.close())
+
+
+def test_stop_level_with_take_profit_from_older_rules():
+    """CAPY: hit TP1 at +20% under the old ladder; the new steady ladder has no 20% level.
+    The stop must not jump to the top level (+75%) and sell right away."""
+    from memeradar.config import Config
+    from memeradar.exits import Position, stop_level
+    p = Position(chain="s", address="a", symbol="C", pair_address="p", entry_ts=0, entry_price=1.0,
+                 peak_price=1.3, tp_hit=[20.0], book="steady")
+    assert stop_level(p, Config().steady_exits) == 0.0          # 20 maps to the 15% level -> one behind = 0

@@ -88,7 +88,10 @@ def stop_level(pos: "Position", rules: ExitRules) -> float | None:
     if not pos.tp_hit:
         return None
     levels = [0.0] + sorted(rules.take_profit_levels)
-    i = levels.index(max(pos.tp_hit)) if max(pos.tp_hit) in levels else len(levels) - 1
+    best = max(pos.tp_hit)
+    # the highest level reached; a take profit recorded under older rules maps to the nearest level
+    # at or below it (it used to jump to the top level and sell immediately)
+    i = max(k for k, lvl in enumerate(levels) if lvl <= best)
     return levels[max(0, i - rules.stop_steps_behind)]
 
 
