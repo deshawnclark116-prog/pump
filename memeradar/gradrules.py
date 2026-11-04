@@ -12,7 +12,9 @@ class GradRules:
     buy_max_sol: float = 160.0        # ...up to ~40%
     min_mcap_usd: float = 10_000      # ...but never under $10k market cap (those lost with every rule)
     sell_at_sol: float = 370.0        # ~90%: sell before the graduation dump
+    min_age_minutes: float = 5.0      # newborn coins whip 50% in seconds (WOKE3: bought at 1 min old)
     max_age_minutes: float = 60.0
+    max_m5_pct: float = 50.0          # skip coins that just went vertical (buying the top of a spike)
     min_buys_m5: int = 25
     min_buy_sell_ratio: float = 1.2   # more buys than sells...
     max_buy_sell_ratio: float = 8.0   # ...but not one-sided (fake hype)

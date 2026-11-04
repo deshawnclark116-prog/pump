@@ -96,7 +96,8 @@ side. Tune or switch it off in the `[steady]` section.
 
 Every pump.fun coin starts on a bonding curve at ~28 SOL market cap and graduates to the open market
 at ~410 SOL. This strategy follows every new launch (free PumpPortal feed + DexScreener prices) and
-fake-buys coins as early as ~17-40% of the way there, under an hour old, with real two-sided buying
+fake-buys coins as early as ~17-40% of the way there (never under $10k), 5-60 minutes old and
+not spiking more than 50% in 5 minutes, with real two-sided buying
 (25+ buys in 5 min, more buys than sells but not one-sided, price rising) and no
 RugCheck red flags. It sells near graduation (~90% of the way) or if it graduates, at -25% of your
 money, or after 30 minutes. Own fake balance; tune it in `[grad]`.

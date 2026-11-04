@@ -490,6 +490,8 @@ def test_grad_entry_rules(tmp_path):
     assert "not rising" in g._entry_ok(_curve_pair(120, m5=-2), 10)
     assert "too old" in g._entry_ok(_curve_pair(120), 90)
     assert "minimum market cap" in g._entry_ok(_curve_pair(100), 10)     # 100 SOL = $9.3k < $10k
+    assert "too new" in g._entry_ok(_curve_pair(120), 1.5)                # WOKE3: bought at ~1 min old
+    assert "spiking" in g._entry_ok(_curve_pair(120, m5=300), 10)
     assert "bonding curve" in g._entry_ok(_curve_pair(120, dex="pumpswap"), 10)
 
 

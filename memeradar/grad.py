@@ -108,6 +108,8 @@ class GradPlay:
             return "under the minimum market cap"
         if age_min > r.max_age_minutes:
             return "too old"
+        if age_min < r.min_age_minutes:
+            return "too new"
         tx = (p.get("txns") or {}).get("m5") or {}
         buys, sells = int(self._f(tx.get("buys"))), int(self._f(tx.get("sells")))
         if buys < r.min_buys_m5:
@@ -120,8 +122,11 @@ class GradPlay:
         vol = self._f((p.get("volume") or {}).get("m5"))
         if r.min_usd_per_buy > 0 and vol / max(buys + sells, 1) < r.min_usd_per_buy:
             return "tiny bot buys"
-        if self._f((p.get("priceChange") or {}).get("m5")) <= 0:
+        m5 = self._f((p.get("priceChange") or {}).get("m5"))
+        if m5 <= 0:
             return "not rising"
+        if r.max_m5_pct and m5 > r.max_m5_pct:
+            return f"spiking (+{m5:.0f}% in 5 min)"
         return ""
 
     async def scan(self, http: Http) -> None:
