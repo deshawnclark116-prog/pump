@@ -2,7 +2,7 @@
 
 Take profits are measured on YOUR MONEY after buy/sell fees and slippage, not the coin price:
 
-  🟢 TAKE PROFIT 1  +20%:  sell HALF. Your stop loss moves up to break-even (0%)
+  🟢 TAKE PROFIT 1  +50%:  sell HALF. Your stop loss moves up to break-even (0%)
   🟢 TAKE PROFIT 2  +100%: sell 25% more
   🟢 TAKE PROFIT 3  +200%: sell 15% more
   🟢 TAKE PROFIT 4  +300%: sell the last 10%
@@ -28,7 +28,7 @@ from .stage import DUMPING, LATE
 
 @dataclass
 class ExitRules:
-    take_profit_levels: list[float] = field(default_factory=lambda: [20.0, 100.0, 200.0, 300.0])  # YOUR money
+    take_profit_levels: list[float] = field(default_factory=lambda: [50.0, 100.0, 200.0, 300.0])  # YOUR money
     # % of the ORIGINAL position to sell at each level above (0 = sell nothing, just lock in)
     take_profit_sell_pct: list[float] = field(default_factory=lambda: [50.0, 25.0, 15.0, 10.0])
     # after a take profit the stop moves up to the PREVIOUS level (0 = break-even after TP1), so a
