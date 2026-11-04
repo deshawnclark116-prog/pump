@@ -429,3 +429,38 @@ def test_one_sided_buyer_filter():
     for b, s in ((401, 305), (305, 269), (84, 22), (1193, 594)):      # STONKS, Pog, MEMECOIN, VC
         assert one_sided(t(b, s), 5.0) == ""
     assert one_sided(t(40, 0), 5.0) == ""                            # too few to judge
+
+
+def test_steady_climber_signal():
+    import time
+    from memeradar.models import TokenState
+    from memeradar.stage import StageResult
+    from memeradar.steady import SteadyRules, qualifies
+
+    def coin(**kw):
+        base = dict(chain="solana", address="s", price_usd=1.0, liquidity_usd=40_000, vol_h1=60_000,
+                    pair_created_at=time.time() - 3 * 3600, price_change={"m5": 2, "h1": 35, "h6": 90},
+                    buyers={"m5": 40, "m15": 110, "m30": 200, "h1": 380},
+                    sellers={"m5": 30, "m15": 90, "m30": 150, "h1": 300})
+        base.update(kw)
+        t = TokenState(**base)
+        t.stage = StageResult("RUNNING", 1.4, 0.0, 1.0, [])
+        return t
+
+    r = SteadyRules()
+    assert "up +35% in 1h" in qualifies(coin(), r)
+    assert qualifies(coin(price_change={"m5": 25, "h1": 35, "h6": 90}), r) == ""     # spiking right now
+    assert qualifies(coin(price_change={"m5": 2, "h1": 150, "h6": 200}), r) == ""    # rocket, not steady
+    assert qualifies(coin(price_change={"m5": 2, "h1": 5, "h6": 20}), r) == ""       # not climbing
+    assert qualifies(coin(sellers={"m5": 30, "m15": 90, "m30": 250, "h1": 300}), r) == ""  # sellers winning
+    assert qualifies(coin(liquidity_usd=8_000), r) == ""                              # too thin
+    assert qualifies(coin(pair_created_at=time.time() - 3 * 86400), r) == ""          # too old
+
+
+def test_paper_books_are_separate(tmp_path):
+    from memeradar.paper import PaperRules, PaperTrader
+    from memeradar.store import Store
+    db = Store(str(tmp_path / "b.db")).db
+    fast, slow = PaperTrader(db, PaperRules()), PaperTrader(db, PaperRules(), "paper_trades_steady", "steady")
+    assert "PAPER (steady) BUY" in slow.buy("solana", "a", "A", 1.0)
+    assert fast.cash() == 100 and slow.cash() == 90

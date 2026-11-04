@@ -75,3 +75,16 @@ trade_usd = 10.0              # pretend amount spent per coin
 fee_pct = 1.25                # per buy and per sell (estimate of real trading fees)
 slippage_pct = 2.0            # buy a bit above / sell a bit below the quoted price
 max_open = 5                  # most coins held at once
+
+[steady]                      # 📈 second signal: steady climbers (own fake balance)
+enabled = true
+min_age_minutes = 30
+max_age_hours = 24
+min_h1_change_pct = 15.0      # up at least this % in the last hour
+max_h1_change_pct = 80.0      # ...but not a rocket
+min_m5_change_pct = -3.0      # still holding up in the last 5 min
+max_m5_change_pct = 15.0      # ...and not spiking right now
+max_h6_change_pct = 300.0
+min_liquidity_usd = 20000
+min_volume_h1_usd = 20000
+min_buyers_h1 = 100

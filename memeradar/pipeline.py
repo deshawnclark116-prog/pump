@@ -10,7 +10,7 @@ import logging
 import time
 from collections import OrderedDict
 
-from . import alerts, exits, safety, scoring, stage
+from . import alerts, exits, safety, scoring, stage, steady
 from .paper import PaperTrader, cost_factor
 from .config import Config
 from .http import Http
@@ -61,6 +61,8 @@ class Radar:
         self.pending_addresses: OrderedDict[str, None] = OrderedDict()
         self.positions: dict[tuple[str, str], exits.Position] = {}
         self.paper = PaperTrader(self.store.db, cfg.paper)
+        self.books = {"fast": self.paper,
+                      "steady": PaperTrader(self.store.db, cfg.paper, table="paper_trades_steady", label="steady")}
         for raw in self.store.load_positions():
             raw.setdefault("cost_factor", cost_factor(cfg.paper))   # saved before money-based exits
             pos = exits.Position(**raw)
@@ -269,28 +271,40 @@ class Radar:
             self.store.snapshot(t)
 
             if self._confirmed(t, now):
-                last = t.last_alert or self.store.last_alert_ts(t.chain, t.address)
-                if now - last > self.cfg.alert_cooldown_minutes * 60:
-                    t.last_alert = now
-                    self.store.alert(t)
-                    await alerts.send(self.http, self.cfg, t)
+                if await self._enter(t, now, "fast"):
                     alerted.append(t)
-                    if t.key not in self.positions and t.price_usd:
-                        pos = exits.Position(chain=t.chain, address=t.address, symbol=t.symbol,
-                                             pair_address=t.pair_address, entry_ts=now,
-                                             entry_price=t.price_usd, entry_liquidity=t.liquidity_usd,
-                                             peak_price=t.price_usd, cost_factor=cost_factor(self.cfg.paper))
-                        self.positions[t.key] = pos
-                        self.store.save_position(pos)
-                        await self._paper_note(self.paper.buy(
-                            t.chain, t.address, t.symbol, t.price_usd, mcap=t.market_cap,
-                            stop_loss_pct=self.cfg.exits.stop_loss_pct,
-                            first_tp_pct=min(self.cfg.exits.take_profit_levels or [0])),
-                                               t.chain, t.address, t.symbol, t.pair_address)
+            elif self.cfg.steady.enabled and t.key not in self.positions:
+                why = steady.qualifies(t, self.cfg.steady)
+                if why and not (bot_buyers(t, self.cfg.min_usd_per_buyer)
+                                or one_sided(t, self.cfg.max_buyers_per_seller)):
+                    if await self._enter(t, now, "steady", why):
+                        alerted.append(t)
         self.store.commit()
         log.info("cycle: tracking %d tokens, %d scored, %d alerts", len(self.tokens),
                  sum(1 for t in self.tokens.values() if t.features), len(alerted))
         return alerted
+
+    async def _enter(self, t: TokenState, now: float, book: str, steady_reason: str = "") -> bool:
+        """Send the entry alert, start watching for exits, and make the fake buy for `book`."""
+        last = t.last_alert or self.store.last_alert_ts(t.chain, t.address)
+        if now - last <= self.cfg.alert_cooldown_minutes * 60:
+            return False
+        t.last_alert = now
+        self.store.alert(t)
+        await alerts.send(self.http, self.cfg, t, steady_reason)
+        if t.key not in self.positions and t.price_usd:
+            pos = exits.Position(chain=t.chain, address=t.address, symbol=t.symbol,
+                                 pair_address=t.pair_address, entry_ts=now,
+                                 entry_price=t.price_usd, entry_liquidity=t.liquidity_usd,
+                                 peak_price=t.price_usd, cost_factor=cost_factor(self.cfg.paper), book=book)
+            self.positions[t.key] = pos
+            self.store.save_position(pos)
+            await self._paper_note(self.books[book].buy(
+                t.chain, t.address, t.symbol, t.price_usd, mcap=t.market_cap,
+                stop_loss_pct=self.cfg.exits.stop_loss_pct,
+                first_tp_pct=min(self.cfg.exits.take_profit_levels or [0])),
+                t.chain, t.address, t.symbol, t.pair_address)
+        return True
 
     def _confirmed(self, t: TokenState, now: float) -> bool:
         """Wait-before-alerting. Returns True once a coin has qualified AND stayed healthy for
@@ -369,12 +383,14 @@ class Radar:
                     link=alerts.chart_link(pos.chain, pos.pair_address or pos.address))
                 if sig.sell_pct > 0:
                     await self._paper_note(
-                        self.paper.take_profit(pos.chain, pos.address, pos.last_price, sig.sell_pct),
+                        self.books.get(pos.book, self.paper).take_profit(pos.chain, pos.address,
+                                                                         pos.last_price, sig.sell_pct),
                         pos.chain, pos.address, pos.symbol, pos.pair_address)
             self.store.save_position(pos)
             if pos.closed:
                 self.positions.pop(key, None)
-                await self._paper_note(self.paper.sell(pos.chain, pos.address, pos.last_price, pos.close_reason),
+                await self._paper_note(self.books.get(pos.book, self.paper).sell(
+                                           pos.chain, pos.address, pos.last_price, pos.close_reason),
                                        pos.chain, pos.address, pos.symbol, pos.pair_address)
         self.store.commit()
 

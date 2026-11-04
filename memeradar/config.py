@@ -8,6 +8,7 @@ from pathlib import Path
 
 from .exits import ExitRules
 from .paper import PaperRules
+from .steady import SteadyRules
 from .stage import StageRules
 
 
@@ -96,6 +97,7 @@ class Config:
     stage: StageRules = field(default_factory=StageRules)
     exits: ExitRules = field(default_factory=ExitRules)
     paper: PaperRules = field(default_factory=PaperRules)
+    steady: SteadyRules = field(default_factory=SteadyRules)
 
     smart_wallets: set[str] = field(default_factory=set)
 

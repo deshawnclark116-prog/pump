@@ -62,9 +62,14 @@ def _ascii(s: str) -> str:
     return s.encode("ascii", "ignore").decode().strip()
 
 
-async def send(http: Http, cfg: Config, t: TokenState) -> None:
-    await send_text(http, cfg, format_alert(t), symbol=t.symbol, address=t.address,
-                    link=chart_link(t.chain, t.pair_address or t.address), kind="NEW")
+async def send(http: Http, cfg: Config, t: TokenState, steady_reason: str = "") -> None:
+    text, kind = format_alert(t), "NEW"
+    if steady_reason:
+        first, rest = text.split("\n", 1)
+        text = (first.replace("🚀", "📈 STEADY CLIMBER", 1) + f"\n{steady_reason}\n" + rest)
+        kind = "STEADY"
+    await send_text(http, cfg, text, symbol=t.symbol, address=t.address,
+                    link=chart_link(t.chain, t.pair_address or t.address), kind=kind)
 
 
 async def send_text(http: Http, cfg: Config, text: str, *, symbol: str | None = None,
@@ -76,7 +81,7 @@ async def send_text(http: Http, cfg: Config, text: str, *, symbol: str | None = 
     if cfg.ntfy_topic:
         # entry + red alerts buzz loudly (high priority); take-profit/fading are normal
         first = text.split("\n", 1)[0]
-        prio = "high" if text.startswith(("🚀", "🔴", "🟢", "✅")) or "TAKE PROFIT" in first else "default"
+        prio = "high" if text.startswith(("🚀", "📈", "🔴", "🟢", "✅")) or "TAKE PROFIT" in first else "default"
         headers = {"Priority": prio}
         if address:
             title = f"{kind} ${_ascii(symbol or '?')} - address ends ...{address[-8:]}".strip()

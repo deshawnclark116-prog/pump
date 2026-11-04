@@ -50,10 +50,19 @@ async def report(cfg) -> None:
 def paper_report(cfg) -> None:
     import time
     from .paper import PaperTrader
-    trader = PaperTrader(Store(cfg.db_path).db, cfg.paper)
+    db = Store(cfg.db_path).db
+    for title, trader in (("FAST RADAR", PaperTrader(db, cfg.paper)),
+                          ("STEADY CLIMBERS", PaperTrader(db, cfg.paper, table="paper_trades_steady",
+                                                          label="steady"))):
+        print(f"===== {title}")
+        _paper_book(trader)
+
+
+def _paper_book(trader) -> None:
+    import time
     closed, still_open = trader.closed_trades(), trader.open_trades()
     if not closed and not still_open:
-        print("no fake trades yet")
+        print("no fake trades yet\n")
         return
     for t in closed:
         pnl = t["usd_out"] - t["usd_in"]
@@ -62,7 +71,7 @@ def paper_report(cfg) -> None:
     for t in still_open:
         print(f"{time.strftime('%m-%d %H:%M', time.localtime(t['entry_ts']))}  ${t['symbol']:<12} still holding")
     wins, losses = trader.record()
-    print(f"\n{trader.summary_line()} · {wins} wins / {losses} losses · {len(still_open)} open")
+    print(f"\n{trader.summary_line()} · {wins} wins / {losses} losses · {len(still_open)} open\n")
 
 
 def main() -> None:

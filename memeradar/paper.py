@@ -52,32 +52,37 @@ def coin_price(x: float) -> str:
 
 
 class PaperTrader:
-    def __init__(self, db, rules: PaperRules) -> None:
-        self.db, self.rules = db, rules
-        self.db.executescript(SCHEMA)
-        have = {r[1] for r in self.db.execute("PRAGMA table_info(paper_trades)")}
+    def __init__(self, db, rules: PaperRules, table: str = "paper_trades", label: str = "") -> None:
+        """`table`/`label` let several strategies keep separate fake balances (e.g. "steady")."""
+        self.db, self.rules, self.table = db, rules, table
+        self.tag = f" ({label})" if label else ""
+        self.db.executescript(SCHEMA.replace("paper_trades", table))
+        have = {r[1] for r in self._x("PRAGMA table_info(paper_trades)")}
         for col, typ in NEW_COLUMNS.items():   # upgrade databases made before partial sells existed
             if col not in have:
-                self.db.execute(f"ALTER TABLE paper_trades ADD COLUMN {col} {typ}")
+                self._x(f"ALTER TABLE paper_trades ADD COLUMN {col} {typ}")
         self.db.commit()
+
+    def _x(self, sql: str, *args):
+        return self.db.execute(sql.replace("paper_trades", self.table), *args)
 
     # ---------------------------------------------------------------- state
     def open_trades(self) -> list[dict]:
-        return [dict(r) for r in self.db.execute(
+        return [dict(r) for r in self._x(
             "SELECT * FROM paper_trades WHERE exit_ts IS NULL ORDER BY entry_ts")]
 
     def closed_trades(self) -> list[dict]:
-        return [dict(r) for r in self.db.execute(
+        return [dict(r) for r in self._x(
             "SELECT * FROM paper_trades WHERE exit_ts IS NOT NULL ORDER BY entry_ts")]
 
     def cash(self) -> float:
-        r = self.db.execute(
+        r = self._x(
             "SELECT COALESCE(SUM(usd_in),0), COALESCE(SUM(CASE WHEN exit_ts IS NULL THEN usd_partial "
             "ELSE usd_out END),0) FROM paper_trades").fetchone()
         return self.rules.start_balance_usd - r[0] + r[1]
 
     def is_open(self, chain: str, address: str) -> bool:
-        return self.db.execute("SELECT 1 FROM paper_trades WHERE chain=? AND address=? AND exit_ts IS NULL",
+        return self._x("SELECT 1 FROM paper_trades WHERE chain=? AND address=? AND exit_ts IS NULL",
                                (chain, address)).fetchone() is not None
 
     def record(self) -> tuple[int, int]:
@@ -93,17 +98,17 @@ class PaperTrader:
         if not r.enabled or not price or self.is_open(chain, address):
             return None
         if len(self.open_trades()) >= r.max_open:
-            return f"🤖 PAPER: skipped ${symbol}, already holding {r.max_open} coins"
+            return f"🤖 PAPER{self.tag}: skipped ${symbol}, already holding {r.max_open} coins"
         if self.cash() < r.trade_usd:
-            return f"🤖 PAPER: skipped ${symbol}, fake balance too low (${self.cash():.2f})"
+            return f"🤖 PAPER{self.tag}: skipped ${symbol}, fake balance too low (${self.cash():.2f})"
         fill = price * (1 + r.slippage_pct / 100)
         tokens = r.trade_usd * (1 - r.fee_pct / 100) / fill
-        self.db.execute(
+        self._x(
             "INSERT INTO paper_trades (chain,address,symbol,entry_ts,entry_price,usd_in,tokens,entry_mcap) "
             "VALUES (?,?,?,?,?,?,?,?)",
             (chain, address, symbol, now or time.time(), fill, r.trade_usd, tokens, mcap))
         self.db.commit()
-        lines = [f"🤖 PAPER BUY ${symbol}: ${r.trade_usd:.2f} (fake money)",
+        lines = [f"🤖 PAPER{self.tag} BUY ${symbol}: ${r.trade_usd:.2f} (fake money)",
                  f"bought at market cap {money(mcap)} · price {coin_price(price)}"]
         if mcap and (stop_loss_pct is not None or first_tp_pct is not None):
             cf = cost_factor(r)
@@ -127,7 +132,7 @@ class PaperTrader:
     def take_profit(self, chain: str, address: str, price: float | None, sell_pct: float) -> str | None:
         """Sell `sell_pct`% of the ORIGINAL coins bought (what the take-profit alert says to sell)."""
         r = self.rules
-        row = self.db.execute("SELECT * FROM paper_trades WHERE chain=? AND address=? AND exit_ts IS NULL",
+        row = self._x("SELECT * FROM paper_trades WHERE chain=? AND address=? AND exit_ts IS NULL",
                               (chain, address)).fetchone()
         if not row or not price or sell_pct <= 0:
             return None
@@ -137,12 +142,12 @@ class PaperTrader:
             return self.sell(chain, address, price, "TAKE PROFIT")
         per_token = price * (1 - r.slippage_pct / 100) * (1 - r.fee_pct / 100)   # cash per coin sold
         got = sell_tokens * per_token
-        self.db.execute("UPDATE paper_trades SET tokens_sold=?, usd_partial=? WHERE id=?",
+        self._x("UPDATE paper_trades SET tokens_sold=?, usd_partial=? WHERE id=?",
                         ((row["tokens_sold"] or 0) + sell_tokens, (row["usd_partial"] or 0) + got, row["id"]))
         self.db.commit()
         still = left - sell_tokens
         taken = (row["usd_partial"] or 0) + got
-        return (f"🤖 PAPER TAKE PROFIT ${row['symbol']}: sold {sell_pct:.0f}% for ${got:.2f}"
+        return (f"🤖 PAPER{self.tag} TAKE PROFIT ${row['symbol']}: sold {sell_pct:.0f}% for ${got:.2f}"
                 f"{self._mcap_at(row, price)}\n"
                 f"taken out so far ${taken:.2f} of ${row['usd_in']:.2f} put in · "
                 f"{still / row['tokens'] * 100:.0f}% still riding (worth ${still * per_token:.2f})")
@@ -150,21 +155,21 @@ class PaperTrader:
     def sell(self, chain: str, address: str, price: float | None, reason: str,
              now: float | None = None) -> str | None:
         r = self.rules
-        row = self.db.execute("SELECT * FROM paper_trades WHERE chain=? AND address=? AND exit_ts IS NULL",
+        row = self._x("SELECT * FROM paper_trades WHERE chain=? AND address=? AND exit_ts IS NULL",
                               (chain, address)).fetchone()
         if not row:
             return None
         fill = max(0.0, (price or 0) * (1 - r.slippage_pct / 100))
         left = max(0.0, row["tokens"] - (row["tokens_sold"] or 0))
         usd_out = (row["usd_partial"] or 0) + left * fill * (1 - r.fee_pct / 100)
-        self.db.execute("UPDATE paper_trades SET exit_ts=?, exit_price=?, usd_out=?, reason=? WHERE id=?",
+        self._x("UPDATE paper_trades SET exit_ts=?, exit_price=?, usd_out=?, reason=? WHERE id=?",
                         (now or time.time(), fill, usd_out, reason, row["id"]))
         self.db.commit()
         pnl = usd_out - row["usd_in"]
         pct = pnl / row["usd_in"] * 100
         wins, losses = self.record()
         icon = "✅" if pnl > 0 else "❌"
-        return (f"🤖 PAPER SELL ${row['symbol']} ({reason}): {icon} {pct:+.0f}% · {pnl:+.2f} USD after fees\n"
+        return (f"🤖 PAPER{self.tag} SELL ${row['symbol']} ({reason}): {icon} {pct:+.0f}% · {pnl:+.2f} USD after fees\n"
                 f"sold{self._mcap_at(row, price) or ''} · bought at market cap {money(row['entry_mcap'])}\n"
                 f"{self.summary_line()} · {wins} wins / {losses} losses")
 

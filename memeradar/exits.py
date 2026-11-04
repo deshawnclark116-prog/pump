@@ -59,6 +59,7 @@ class Position:
     last_price: float | None = None
 
     cost_factor: float = 1.0   # what a round trip keeps after fees + slippage (0.94 = 6% lost)
+    book: str = "fast"         # which strategy bought it ("fast" radar or "steady" climber)
 
     def change(self, price: float) -> float:
         """Coin price change since the alert."""

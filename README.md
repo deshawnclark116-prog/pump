@@ -82,6 +82,15 @@ A red alert ends the watch. To see every alert and what it did afterwards:
 python -m memeradar report
 ```
 
+## Second signal: steady climbers (📈 STEADY)
+
+The main radar waits for a burst of new buyers. The steady signal looks for coins that are simply
+climbing: 30 min to 24 h old, up 15–80% in the last hour, still flat-to-up in the last 5 minutes
+(not spiking), more buyers than sellers over the last 30 and 60 minutes (100+ buyers), $20k+
+liquidity and $20k+ hourly volume, not LATE/DUMPING. Same fake-hype filters and the same exit
+alerts. It has its own fake-money balance, so `python -m memeradar paper` shows both styles side by
+side. Tune or switch it off in the `[steady]` section.
+
 ## Fake-money trading (paper mode)
 
 Every entry alert also makes a pretend $10 buy and then does exactly what the exit alerts above
