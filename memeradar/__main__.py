@@ -48,14 +48,15 @@ async def report(cfg) -> None:
 
 
 def paper_report(cfg) -> None:
-    import time
     from .paper import PaperTrader
+    from .scalp import Scalper
     db = Store(cfg.db_path).db
     for title, trader in (("FAST RADAR", PaperTrader(db, cfg.paper)),
                           ("STEADY CLIMBERS", PaperTrader(db, cfg.paper, table="paper_trades_steady",
                                                           label="steady")),
                           ("GRADUATION PLAY", PaperTrader(db, cfg.paper, table="paper_trades_grad",
-                                                          label="grad"))):
+                                                          label="grad")),
+                          ("SCALPER", Scalper(cfg.scalp, cfg.paper, db, None).book)):
         print(f"===== {title}")
         _paper_book(trader)
 

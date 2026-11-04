@@ -516,3 +516,48 @@ def test_grad_sells_near_graduation_and_on_stop(tmp_path):
     asyncio.run(g._buy("M", _curve_pair(200, px=0.00002), "M"))
     asyncio.run(g.manage(FakeHttp([_curve_pair(140, px=0.000014)])))           # -30% coin: stop
     assert "STOP LOSS" in sent[-1] and "❌" in sent[-1]
+
+
+def test_scalper_in_and_out(tmp_path):
+    import asyncio
+    from memeradar.config import Config
+    from memeradar.models import Safety, TokenState
+    from memeradar.scalp import ScalpRules, Scalper, qualifies
+    from memeradar.stage import StageResult
+    from memeradar.store import Store
+
+    def coin(**kw):
+        base = dict(chain="solana", address="S", symbol="S", price_usd=1.0, liquidity_usd=30_000, vol_m5=12_000,
+                    price_change={"m5": 8}, buyers={"m5": 90}, sellers={"m5": 50}, pair_address="P")
+        base.update(kw)
+        t = TokenState(**base)
+        t.safety, t.stage = Safety(passed=True), StageResult("RUNNING", 1.5, 0.0, 1.0, [])
+        return t
+
+    r = ScalpRules()
+    assert "up +8% in 5 min" in qualifies(coin(), r)
+    assert qualifies(coin(price_change={"m5": 40}), r) == ""             # already spiked
+    assert qualifies(coin(price_change={"m5": -2}), r) == ""             # not moving up
+    assert qualifies(coin(buyers={"m5": 90}, sellers={"m5": 10}), r) == ""   # one-sided
+    assert qualifies(coin(liquidity_usd=5_000), r) == ""
+
+    sent = []
+
+    async def send(text, *a):
+        sent.append(text)
+
+    class FakeHttp:
+        def __init__(self, px): self.px = px
+        async def get(self, url):
+            return [{"baseToken": {"address": "S"}, "priceUsd": str(self.px), "pairAddress": "P", "liquidity": {"usd": 3e4}}]
+
+    cfg = Config(db_path=str(tmp_path / "sc.db"))
+    s = Scalper(cfg.scalp, cfg.paper, Store(cfg.db_path).db, send)
+    asyncio.run(s.consider(coin()))
+    assert "PAPER (scalp) BUY" in sent[-1] and "⚡ scalp" in sent[-1]
+    asyncio.run(s.manage(FakeHttp(1.10)))                                # money ~+7%: hold
+    assert s.held
+    asyncio.run(s.manage(FakeHttp(1.20)))                                # money ~+15%: take profit
+    assert "TAKE PROFIT" in sent[-1] and "✅" in sent[-1] and not s.held
+    asyncio.run(s.consider(coin()))                                      # cooldown: no re-buy yet
+    assert "TAKE PROFIT" in sent[-1]

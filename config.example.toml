@@ -102,3 +102,20 @@ max_buy_sell_ratio = 8.0
 min_usd_per_buy = 0.0         # >0 skips coins with tiny average trades (off)
 stop_loss_pct = 25.0          # YOUR money after fees
 max_hold_minutes = 30.0
+
+[scalp]                       # ⚡ fourth signal: quick in-and-out scalps (own fake balance)
+enabled = true
+take_profit_pct = 15.0        # YOUR money after fees
+stop_loss_pct = 10.0
+max_hold_minutes = 10.0       # out after this no matter what
+min_m5_pct = 3.0              # price up at least this in the last 5 min...
+max_m5_pct = 25.0             # ...but not already spiked
+min_buyers_m5 = 30
+min_buy_sell_ratio = 1.2
+max_buy_sell_ratio = 5.0
+min_volume_m5_usd = 5000
+min_liquidity_usd = 15000
+cooldown_minutes = 15.0       # before scalping the same coin again
+slippage_pct = 0.5
+trade_usd = 10.0
+max_open = 5

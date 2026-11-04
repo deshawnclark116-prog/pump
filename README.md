@@ -100,6 +100,15 @@ fake-buys coins as early as ~17-40% of the way there, under an hour old, with re
 RugCheck red flags. It sells near graduation (~90% of the way) or if it graduates, at -25% of your
 money, or after 30 minutes. Own fake balance; tune it in `[grad]`.
 
+## Fourth signal: the scalper (⚡, fake money only)
+
+Quick in-and-out trades on any safety-checked coin the radar is tracking: it buys when the price is
+up 3–25% in the last 5 minutes with 30+ buyers, more buyers than sellers (but not one-sided),
+$5k+ traded in 5 minutes and $15k+ liquidity, and the coin isn't LATE/DUMPING. It sells at +15% of
+your money after fees, at -10%, or after 10 minutes no matter what, and can scalp the same coin
+again after 15 minutes. It assumes 0.5% slippage (a $10 order barely moves a $15k+ pool). Own fake
+balance; tune it in `[scalp]`.
+
 ## Fake-money trading (paper mode)
 
 Every entry alert also makes a pretend $10 buy and then does exactly what the exit alerts above

@@ -9,6 +9,7 @@ from pathlib import Path
 from .exits import ExitRules
 from .paper import PaperRules
 from .gradrules import GradRules
+from .scalp import ScalpRules
 from .steady import SteadyRules
 from .stage import StageRules
 
@@ -100,6 +101,7 @@ class Config:
     paper: PaperRules = field(default_factory=PaperRules)
     steady: SteadyRules = field(default_factory=SteadyRules)
     grad: GradRules = field(default_factory=GradRules)
+    scalp: ScalpRules = field(default_factory=ScalpRules)
 
     smart_wallets: set[str] = field(default_factory=set)
 

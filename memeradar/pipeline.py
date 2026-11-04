@@ -13,6 +13,7 @@ from collections import OrderedDict
 from . import alerts, exits, safety, scoring, stage, steady
 from .grad import GradPlay
 from .paper import PaperTrader, cost_factor
+from .scalp import Scalper
 from .config import Config
 from .http import Http
 from .models import TokenState
@@ -63,6 +64,7 @@ class Radar:
         self.positions: dict[tuple[str, str], exits.Position] = {}
         self.paper = PaperTrader(self.store.db, cfg.paper)
         self.grad = GradPlay(cfg, self.store.db, self._grad_note) if cfg.grad.enabled else None
+        self.scalp = Scalper(cfg.scalp, cfg.paper, self.store.db, self._scalp_note) if cfg.scalp.enabled else None
         self.books = {"fast": self.paper,
                       "steady": PaperTrader(self.store.db, cfg.paper, table="paper_trades_steady", label="steady")}
         for raw in self.store.load_positions():
@@ -274,6 +276,11 @@ class Radar:
             self.store.upsert_token(t)
             self.store.snapshot(t)
 
+            if self.scalp:
+                try:
+                    await self.scalp.consider(t)
+                except Exception:  # noqa: BLE001  a scalper bug must never stop the main radar
+                    log.exception("scalp consider failed")
             if self._confirmed(t, now):
                 if await self._enter(t, now, "fast"):
                     alerted.append(t)
@@ -410,6 +417,14 @@ class Radar:
         await alerts.send_text(self.http, self.cfg, text, symbol=symbol, address=address,
                                kind="GRAD", link=alerts.chart_link("solana", pair or address))
 
+    async def _scalp_note(self, text: str, chain: str, address: str, symbol: str, pair: str | None) -> None:
+        log.info(text.replace("\n", " | "))
+        await alerts.send_text(self.http, self.cfg, text, symbol=symbol, address=address,
+                               kind="SCALP", link=alerts.chart_link(chain, pair or address))
+
+    async def scalp_manage(self) -> None:
+        await self.scalp.manage(self.http)
+
     async def grad_scan(self) -> None:
         await self.grad.scan(self.http)
 
@@ -435,6 +450,8 @@ class Radar:
             tasks.append(self.pump.run())
         tasks.append(self._every(cfg.score_interval, self.score_cycle))
         tasks.append(self._every(cfg.exits.check_interval, self.exit_cycle))
+        if self.scalp:
+            tasks.append(self._every(cfg.exits.check_interval, self.scalp_manage))
         if self.grad and self.pump:
             tasks.append(self._every(cfg.grad.poll_seconds, self.grad_scan))
             tasks.append(self._every(cfg.exits.check_interval, self.grad_manage))
