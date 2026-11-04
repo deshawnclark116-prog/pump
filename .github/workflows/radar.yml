@@ -53,3 +53,29 @@ jobs:
         with:
           path: memeradar.db
           key: radar-db-${{ github.run_id }}
+      - name: preserve research evidence
+        if: always() && hashFiles('memeradar.db') != ''
+        run: |
+          mkdir -p research-output
+          python - <<'PY'
+          import json, os, sqlite3
+          from datetime import datetime, timezone
+          from pathlib import Path
+          with sqlite3.connect('memeradar.db') as source:
+              with sqlite3.connect('research-output/memeradar.db') as target:
+                  source.backup(target)
+          Path('research-output/provenance.json').write_text(json.dumps({
+              'commit': os.environ['GITHUB_SHA'], 'run_id': os.environ['GITHUB_RUN_ID'],
+              'exported_at': datetime.now(timezone.utc).isoformat(),
+              'note': 'Ledger includes earlier rule versions. No secrets exported.'
+          }, indent=2))
+          PY
+          python -m memeradar.research --db research-output/memeradar.db --audit --output research-output/audit.json
+          python -m memeradar.research --db research-output/memeradar.db --since "$(date -u -d '24 hours ago' +%Y-%m-%dT%H:%M:%SZ)" --until "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --output research-output/replay.json
+      - uses: actions/upload-artifact@v4
+        if: always() && hashFiles('research-output/audit.json') != ''
+        with:
+          name: research-${{ github.run_id }}
+          path: research-output/
+          retention-days: 14
+

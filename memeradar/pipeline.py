@@ -278,6 +278,7 @@ class Radar:
                 st = stats.get(t.pair_address)
                 if st:
                     t.buyers, t.sellers = st["buyers"], st["sellers"]
+                    t.buyers_updated_at = time.time()
 
         for t in ready:
             t.stage = stage.classify(price=t.price_usd, ref_price=t.reference_price(), peak_price=t.peak_price,
@@ -540,3 +541,4 @@ class Radar:
             await asyncio.gather(*running, return_exceptions=True)
             self.store.commit()
             await self.http.close()
+

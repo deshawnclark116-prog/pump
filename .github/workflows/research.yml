@@ -1,0 +1,60 @@
+name: research audit
+on:
+  push:
+    paths:
+      - 'memeradar/research.py'
+      - '.github/workflows/research.yml'
+  workflow_dispatch:
+    inputs:
+      since:
+        description: 'Optional replay start, UTC ISO timestamp (include Z)'
+        required: false
+      until:
+        description: 'Optional replay end, UTC ISO timestamp (include Z)'
+        required: false
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/cache/restore@v4
+        with:
+          path: memeradar.db
+          key: research-read-${{ github.run_id }}
+          restore-keys: radar-db-
+          fail-on-cache-miss: true
+      - name: audit cached ledger and optionally replay
+        env:
+          RESEARCH_SINCE: ${{ inputs.since }}
+          RESEARCH_UNTIL: ${{ inputs.until }}
+        run: |
+          mkdir -p research-output
+          python -m memeradar.research --audit --output research-output/audit.json
+          if [ -n "$RESEARCH_SINCE" ] || [ -n "$RESEARCH_UNTIL" ]; then
+            python -m memeradar.research --since "$RESEARCH_SINCE" --until "$RESEARCH_UNTIL" --output research-output/replay.json
+          fi
+          python - <<'PY'
+          import json, os, sqlite3
+          from pathlib import Path
+          from datetime import datetime, timezone
+          with sqlite3.connect('memeradar.db') as source:
+              with sqlite3.connect('research-output/memeradar.db') as target:
+                  source.backup(target)
+          Path('research-output/provenance.json').write_text(json.dumps({
+              'analysis_commit': os.environ['GITHUB_SHA'],
+              'run_id': os.environ['GITHUB_RUN_ID'],
+              'exported_at': datetime.now(timezone.utc).isoformat(),
+              'source': 'Latest available default-branch radar cache; may predate current run'
+          }, indent=2))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: research-audit-${{ github.run_id }}
+          path: research-output/
+          retention-days: 14

@@ -39,8 +39,20 @@ class Store:
              None if s is None else int(s.passed), None if s is None else json.dumps(s.reasons)))
 
     def snapshot(self, t) -> None:
+        # Append the evidence available now; never reconstruct it from later token metadata.
+        features = dict(t.features)
+        features["research_v1"] = {
+            "market_received_at": t.market_updated_at,
+            "breadth_received_at": t.buyers_updated_at,
+            "safety_checked_at": t.safety.checked_at if t.safety else 0,
+            "safety_passed": bool(t.safety and t.safety.passed),
+            "buyers": (t.buyers or {}).get("m5"),
+            "sellers": (t.sellers or {}).get("m5"),
+            "age_minutes": t.age_minutes, "dex_id": t.dex_id,
+            "m5_pct": t.price_change.get("m5"),
+        }
         self.db.execute("INSERT INTO snapshots VALUES (?,?,?,?,?,?,?,?,?,?)",
-                        (time.time(), t.chain, t.address, t.score, json.dumps(t.features),
+                        (time.time(), t.chain, t.address, t.score, json.dumps(features),
                          t.price_usd, t.liquidity_usd, t.vol_m5, t.vol_h1, t.market_cap))
 
     def alert(self, t) -> None:
@@ -104,3 +116,4 @@ class Store:
         if cur.rowcount:
             self.db.execute("VACUUM")
         return cur.rowcount
+

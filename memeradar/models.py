@@ -79,6 +79,8 @@ class TokenState:
     buyers: dict[str, int] | None = None
     sellers: dict[str, int] | None = None
 
+    buyers_updated_at: float = 0.0  # reception time, not provider event time
+
     # where did it start, how high has it been
     launch_mcap_sol: float | None = None   # pump.fun create event
     first_price: float | None = None
@@ -135,3 +137,4 @@ class TokenState:
     @property
     def pool_age_minutes(self) -> float | None:
         return (time.time() - self.pair_created_at) / 60 if self.pair_created_at else None
+
