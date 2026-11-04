@@ -27,6 +27,7 @@ class SteadyRules:
     min_liquidity_usd: float = 20_000
     min_volume_h1_usd: float = 20_000
     min_buyers_h1: int = 100
+    max_runup: float = 0.0               # >0: only coins under this many x since launch (0 = off)
 
 
 def qualifies(t: TokenState, r: SteadyRules) -> str:
@@ -39,6 +40,8 @@ def qualifies(t: TokenState, r: SteadyRules) -> str:
     if r.max_age_hours and age is not None and age > r.max_age_hours * 60:
         return ""
     if t.stage and t.stage.stage in (LATE, DUMPING):
+        return ""
+    if r.max_runup and t.stage and t.stage.runup and t.stage.runup >= r.max_runup:
         return ""
     pc = t.price_change or {}
     h1, m5, h6 = pc.get("h1"), pc.get("m5"), pc.get("h6")
@@ -58,5 +61,6 @@ def qualifies(t: TokenState, r: SteadyRules) -> str:
     for w in ("m30", "h1"):
         if b.get(w, 0) <= s.get(w, 0):
             return ""
-    return (f"up {h1:+.0f}% in 1h, {m5:+.0f}% in the last 5 min · "
+    runup = f"{t.stage.runup:.1f}x since launch · " if r.max_runup and t.stage and t.stage.runup else ""
+    return (f"{runup}up {h1:+.0f}% in 1h, {m5:+.0f}% in the last 5 min · "
             f"buyers ahead of sellers all hour ({b.get('h1', 0)} vs {s.get('h1', 0)})")

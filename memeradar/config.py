@@ -107,6 +107,9 @@ class Config:
         stop_loss_pct=15.0, trail_after_tp_pct=15.0))
     paper: PaperRules = field(default_factory=PaperRules)
     steady: SteadyRules = field(default_factory=SteadyRules)
+    # "steady v1": same as steady, plus only coins under 2x since launch (both CAPY winners were
+    # 1.5-1.7x; the steady losers were 2.6-2.8x). Own fake balance, so the two can be compared.
+    steady_v1: SteadyRules = field(default_factory=lambda: SteadyRules(max_runup=2.0))
     grad: GradRules = field(default_factory=GradRules)
     scalp: ScalpRules = field(default_factory=ScalpRules)
 

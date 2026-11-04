@@ -93,6 +93,13 @@ liquidity and $20k+ hourly volume, not LATE/DUMPING. Same fake-hype filters, wit
 after the first take profit, sell the rest 15% below the high. It has its own fake-money balance, so `python -m memeradar paper` shows both styles side by
 side. Tune or switch it off in the `[steady]` section.
 
+### Steady v1 (test variant)
+
+Same rules as steady climbers plus one: only coins **under 2x since launch** (both CAPY winners were
+1.5–1.7x; the steady losers were 2.6–2.8x). It keeps its own fake balance and sends only its 🤖 PAPER
+(steady v1) messages (no duplicate 📈/🔴 alerts), so the two versions can be compared side by side.
+Settings: `[steady_v1]`.
+
 ## Third signal: the graduation play (🎓, fake money only)
 
 Every pump.fun coin starts on a bonding curve at ~28 SOL market cap and graduates to the open market

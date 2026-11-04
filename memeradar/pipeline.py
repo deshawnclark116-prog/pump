@@ -61,16 +61,20 @@ class Radar:
         self.tokens: dict[tuple[str, str], TokenState] = {}
         self.rejected: OrderedDict[tuple[str, str], float] = OrderedDict()
         self.pending_addresses: OrderedDict[str, None] = OrderedDict()
-        self.positions: dict[tuple[str, str], exits.Position] = {}
+        # open positions, keyed (chain, address, book): two strategies can hold the same coin
+        self.positions: dict[tuple[str, str, str], exits.Position] = {}
+        self.last_entry: dict[tuple[str, str, str], float] = {}
         self.paper = PaperTrader(self.store.db, cfg.paper)
         self.grad = GradPlay(cfg, self.store.db, self._grad_note) if cfg.grad.enabled else None
         self.scalp = Scalper(cfg.scalp, cfg.paper, self.store.db, self._scalp_note) if cfg.scalp.enabled else None
         self.books = {"fast": self.paper,
-                      "steady": PaperTrader(self.store.db, cfg.paper, table="paper_trades_steady", label="steady")}
+                      "steady": PaperTrader(self.store.db, cfg.paper, table="paper_trades_steady", label="steady"),
+                      "steady_v1": PaperTrader(self.store.db, cfg.paper, table="paper_trades_steady_v1",
+                                               label="steady v1")}
         for raw in self.store.load_positions():
             raw.setdefault("cost_factor", cost_factor(cfg.paper))   # saved before money-based exits
             pos = exits.Position(**raw)
-            self.positions[(pos.chain, pos.address)] = pos
+            self.positions[(pos.chain, pos.address, pos.book)] = pos
         self.pump = (PumpPortal(self._on_new_pump_token, self._on_pump_trade, cfg.pumpportal_api_key)
                      if cfg.enable_pumpportal else None)
 
@@ -84,7 +88,8 @@ class Radar:
         if key in self.rejected:
             return None
         if len(self.tokens) >= self.cfg.max_tracked_tokens:
-            candidates = [t for t in self.tokens.values() if t.key not in self.positions]
+            held = self.held_tokens()
+            candidates = [t for t in self.tokens.values() if t.key not in held]
             if candidates:
                 victim = min(candidates, key=lambda t: (t.score, t.last_activity))
                 self._drop(victim.key)
@@ -94,7 +99,7 @@ class Radar:
         return t
 
     def _drop(self, key: tuple[str, str], reject: bool = False) -> None:
-        if key in self.positions and not reject:
+        if key in self.held_tokens() and not reject:
             return  # still watching it for an exit
         t = self.tokens.pop(key, None)
         if reject:
@@ -284,43 +289,61 @@ class Radar:
             if self._confirmed(t, now):
                 if await self._enter(t, now, "fast"):
                     alerted.append(t)
-            elif self.cfg.steady.enabled and t.key not in self.positions:
-                why = steady.qualifies(t, self.cfg.steady)
-                if why and not (bot_buyers(t, self.cfg.min_usd_per_buyer)
-                                or one_sided(t, self.cfg.max_buyers_per_seller)):
-                    if await self._enter(t, now, "steady", why):
+            else:
+                fake = (bot_buyers(t, self.cfg.min_usd_per_buyer) or one_sided(t, self.cfg.max_buyers_per_seller))
+                if self.cfg.steady.enabled and t.key + ("steady",) not in self.positions and not fake:
+                    why = steady.qualifies(t, self.cfg.steady)
+                    if why and await self._enter(t, now, "steady", why):
                         alerted.append(t)
+                if self.cfg.steady_v1.enabled and t.key + ("steady_v1",) not in self.positions and not fake:
+                    why = steady.qualifies(t, self.cfg.steady_v1)
+                    if why:
+                        await self._enter(t, now, "steady_v1", why)
         self.store.commit()
         log.info("cycle: tracking %d tokens, %d scored, %d alerts", len(self.tokens),
                  sum(1 for t in self.tokens.values() if t.features), len(alerted))
         return alerted
 
+    QUIET_BOOKS = ("steady_v1",)   # test variants: fake trades only, no duplicate 📈/🔴 phone alerts
+
+    def held_tokens(self) -> set[tuple[str, str]]:
+        return {k[:2] for k in self.positions}
+
     def exit_rules(self, book: str):
         """Each strategy can have its own take profits / stops."""
-        return self.cfg.steady_exits if book == "steady" else self.cfg.exits
+        return self.cfg.steady_exits if book.startswith("steady") else self.cfg.exits
 
     async def _enter(self, t: TokenState, now: float, book: str, steady_reason: str = "") -> bool:
         """Send the entry alert, start watching for exits, and make the fake buy for `book`."""
         if (t.market_cap or 0) < self.cfg.min_entry_mcap_usd:
             return False                       # too small: these lose with every exit rule
-        last = t.last_alert or self.store.last_alert_ts(t.chain, t.address)
-        if now - last <= self.cfg.alert_cooldown_minutes * 60:
-            return False
-        t.last_alert = now
-        self.store.alert(t)
-        await alerts.send(self.http, self.cfg, t, steady_reason)
-        if t.key not in self.positions and t.price_usd:
+        quiet = book in self.QUIET_BOOKS
+        if quiet:
+            if now - self.last_entry.get(t.key + (book,), 0) <= self.cfg.alert_cooldown_minutes * 60:
+                return False
+            self.last_entry[t.key + (book,)] = now
+        else:
+            last = t.last_alert or self.store.last_alert_ts(t.chain, t.address)
+            if now - last <= self.cfg.alert_cooldown_minutes * 60:
+                return False
+            t.last_alert = now
+            self.store.alert(t)
+            await alerts.send(self.http, self.cfg, t, steady_reason)
+        key = t.key + (book,)
+        if key not in self.positions and t.price_usd:
+            rules = self.exit_rules(book)
             pos = exits.Position(chain=t.chain, address=t.address, symbol=t.symbol,
                                  pair_address=t.pair_address, entry_ts=now,
                                  entry_price=t.price_usd, entry_liquidity=t.liquidity_usd,
                                  peak_price=t.price_usd, cost_factor=cost_factor(self.cfg.paper), book=book)
-            self.positions[t.key] = pos
+            self.positions[key] = pos
             self.store.save_position(pos)
-            await self._paper_note(self.books[book].buy(
+            note = self.books[book].buy(
                 t.chain, t.address, t.symbol, t.price_usd, mcap=t.market_cap,
-                stop_loss_pct=self.exit_rules(book).stop_loss_pct,
-                first_tp_pct=min(self.exit_rules(book).take_profit_levels or [0])),
-                t.chain, t.address, t.symbol, t.pair_address)
+                stop_loss_pct=rules.stop_loss_pct, first_tp_pct=min(rules.take_profit_levels or [0]))
+            if note and quiet and steady_reason:
+                note += f"\n📈 {steady_reason}"
+            await self._paper_note(note, t.chain, t.address, t.symbol, t.pair_address)
         return True
 
     def _confirmed(self, t: TokenState, now: float) -> bool:
@@ -383,6 +406,7 @@ class Radar:
                 snaps[(chain, addr)] = snap
         for pos in open_pos:
             key = (pos.chain, pos.address)
+            quiet = pos.book in self.QUIET_BOOKS
             snap = snaps.get(key)
             if not snap:
                 continue
@@ -393,11 +417,12 @@ class Radar:
             for sig in exits.evaluate(pos, snap.get("price_usd"), snap.get("liquidity_usd"), st,
                                       self.exit_rules(pos.book)):
                 log.info("EXIT %s %s: %s", pos.symbol, sig.title, sig.detail)
-                self.store.exit_event(pos, sig)
-                await alerts.send_text(
-                    self.http, self.cfg, exits.format_exit(pos, sig), symbol=pos.symbol,
-                    address=pos.address, kind=sig.title,
-                    link=alerts.chart_link(pos.chain, pos.pair_address or pos.address))
+                if not quiet:
+                    self.store.exit_event(pos, sig)
+                    await alerts.send_text(
+                        self.http, self.cfg, exits.format_exit(pos, sig), symbol=pos.symbol,
+                        address=pos.address, kind=sig.title,
+                        link=alerts.chart_link(pos.chain, pos.pair_address or pos.address))
                 if sig.sell_pct > 0:
                     await self._paper_note(
                         self.books.get(pos.book, self.paper).take_profit(pos.chain, pos.address,
@@ -405,7 +430,7 @@ class Radar:
                         pos.chain, pos.address, pos.symbol, pos.pair_address)
             self.store.save_position(pos)
             if pos.closed:
-                self.positions.pop(key, None)
+                self.positions.pop(key + (pos.book,), None)
                 await self._paper_note(self.books.get(pos.book, self.paper).sell(
                                            pos.chain, pos.address, pos.last_price, pos.close_reason),
                                        pos.chain, pos.address, pos.symbol, pos.pair_address)

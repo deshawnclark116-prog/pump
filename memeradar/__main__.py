@@ -54,6 +54,8 @@ def paper_report(cfg) -> None:
     for title, trader in (("FAST RADAR", PaperTrader(db, cfg.paper)),
                           ("STEADY CLIMBERS", PaperTrader(db, cfg.paper, table="paper_trades_steady",
                                                           label="steady")),
+                          ("STEADY V1 (under 2x)", PaperTrader(db, cfg.paper, table="paper_trades_steady_v1",
+                                                               label="steady v1")),
                           ("GRADUATION PLAY", PaperTrader(db, cfg.paper, table="paper_trades_grad",
                                                           label="grad")),
                           ("SCALPER", Scalper(cfg.scalp, cfg.paper, db, None).book)):

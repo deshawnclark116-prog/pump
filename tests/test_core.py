@@ -679,3 +679,41 @@ def test_stop_level_with_take_profit_from_older_rules():
     p = Position(chain="s", address="a", symbol="C", pair_address="p", entry_ts=0, entry_price=1.0,
                  peak_price=1.3, tp_hit=[20.0], book="steady")
     assert stop_level(p, Config().steady_exits) == 0.0          # 20 maps to the 15% level -> one behind = 0
+
+
+def test_steady_v1_only_takes_coins_under_2x(tmp_path):
+    import asyncio, time
+    from memeradar.config import Config
+    from memeradar.models import TokenState
+    from memeradar.pipeline import Radar
+    from memeradar.stage import StageResult
+    from memeradar.steady import qualifies
+
+    def coin(runup):
+        t = TokenState(chain="solana", address=f"c{runup}", symbol="C", price_usd=1.0, liquidity_usd=40_000,
+                       vol_h1=60_000, market_cap=82_000, pair_created_at=time.time() - 32 * 3600,
+                       price_change={"m5": 5, "h1": 68, "h6": 90},
+                       buyers={"m5": 25, "m30": 90, "h1": 169}, sellers={"m5": 21, "m30": 80, "h1": 164})
+        t.stage = StageResult("RUNNING", runup, 0.09, 0.4, [])
+        return t
+
+    cfg = Config(db_path=str(tmp_path / "v1.db"), enable_pumpportal=False, ntfy_topic="")
+    capy, mag = coin(1.7), coin(2.8)
+    assert qualifies(capy, cfg.steady) and qualifies(mag, cfg.steady)          # plain steady takes both
+    assert "1.7x since launch" in qualifies(capy, cfg.steady_v1)
+    assert qualifies(mag, cfg.steady_v1) == ""                                  # v1 skips 2.8x
+    r = Radar(cfg)
+    import memeradar.alerts as A
+
+    async def quiet(*a, **k): pass
+    real_send, A.send = A.send, quiet
+    now = time.time()
+    try:
+        asyncio.run(r._enter(capy, now, "steady"))
+        asyncio.run(r._enter(capy, now, "steady_v1"))                           # same coin, both books
+    finally:
+        A.send = real_send
+    assert ("solana", capy.address, "steady") in r.positions
+    assert ("solana", capy.address, "steady_v1") in r.positions
+    assert r.books["steady_v1"].open_trades() and r.books["steady"].open_trades()
+    asyncio.run(r.http.close())
