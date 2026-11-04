@@ -114,10 +114,12 @@ class Config:
         take_profit_levels=[15.0, 40.0, 75.0, 120.0], take_profit_sell_pct=[50.0, 25.0, 15.0, 10.0],
         stop_loss_pct=15.0, trail_after_tp_pct=15.0))
     paper: PaperRules = field(default_factory=PaperRules)
-    steady: SteadyRules = field(default_factory=SteadyRules)
+    # steady climbers are OFF: since the morning after they started, steady + steady v1 went 0 for 6,
+    # every trade stopped out within 4-7 minutes (they buy after the climb, near a short-term top)
+    steady: SteadyRules = field(default_factory=lambda: SteadyRules(enabled=False))
     # "steady v1": same as steady, plus only coins under 2x since launch (both CAPY winners were
     # 1.5-1.7x; the steady losers were 2.6-2.8x). Own fake balance, so the two can be compared.
-    steady_v1: SteadyRules = field(default_factory=lambda: SteadyRules(max_runup=2.0))
+    steady_v1: SteadyRules = field(default_factory=lambda: SteadyRules(enabled=False, max_runup=2.0))
     grad: GradRules = field(default_factory=GradRules)
     scalp: ScalpRules = field(default_factory=ScalpRules)
 

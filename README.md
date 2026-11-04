@@ -83,7 +83,11 @@ A red alert ends the watch. To see every alert and what it did afterwards:
 python -m memeradar report
 ```
 
-## Second signal: steady climbers (📈 STEADY)
+## Second signal: steady climbers (📈 STEADY), switched off
+
+**Off by default:** steady and steady v1 went 0 for 6 overnight (every trade stopped out within
+4–7 minutes). Set `enabled = true` under `[steady]` / `[steady_v1]` to bring them back.
+
 
 The main radar waits for a burst of new buyers. The steady signal looks for coins that are simply
 climbing, at any age: up 15–80% in the last hour, still flat-to-up in the last 5 minutes

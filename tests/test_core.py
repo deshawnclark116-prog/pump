@@ -448,7 +448,7 @@ def test_steady_climber_signal():
         t.stage = StageResult("RUNNING", 1.4, 0.0, 1.0, [])
         return t
 
-    r = SteadyRules()
+    r = SteadyRules()                                                          # enabled=True here
     assert "up +35% in 1h" in qualifies(coin(), r)
     assert qualifies(coin(price_change={"m5": 25, "h1": 35, "h6": 90}), r) == ""     # spiking right now
     assert qualifies(coin(price_change={"m5": 2, "h1": 150, "h6": 200}), r) == ""    # rocket, not steady
@@ -702,6 +702,7 @@ def test_steady_v1_only_takes_coins_under_2x(tmp_path):
 
     cfg = Config(db_path=str(tmp_path / "v1.db"), enable_pumpportal=False, ntfy_topic="",
                  fresh_price_max_drop_pct=0)                            # no network in this test
+    cfg.steady.enabled = cfg.steady_v1.enabled = True                          # off by default now
     capy, mag = coin(1.7), coin(2.8)
     assert qualifies(capy, cfg.steady) and qualifies(mag, cfg.steady)          # plain steady takes both
     assert "1.7x since launch" in qualifies(capy, cfg.steady_v1)
