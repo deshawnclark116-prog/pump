@@ -58,7 +58,9 @@ def paper_report(cfg) -> None:
                                                                label="steady v1")),
                           ("GRADUATION PLAY", PaperTrader(db, cfg.paper, table="paper_trades_grad",
                                                           label="grad")),
-                          ("SCALPER", Scalper(cfg.scalp, cfg.paper, db, None).book)):
+                          ("SCALPER", Scalper(cfg.scalp, cfg.paper, db, None).book),
+                          ("RECOVERY PAPER", PaperTrader(db, cfg.paper, table="paper_trades_recovery", label="recovery")),
+                          ("SCALP UNDER 2X", PaperTrader(db, cfg.paper, table="paper_trades_scalp_under2", label="scalp under 2x"))):
         print(f"===== {title}")
         _paper_book(trader)
 
@@ -141,3 +143,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+

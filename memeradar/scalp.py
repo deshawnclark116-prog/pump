@@ -94,11 +94,12 @@ class _Hold:
 
 
 class Scalper:
-    def __init__(self, r: ScalpRules, paper: PaperRules, db, send) -> None:
+    def __init__(self, r: ScalpRules, paper: PaperRules, db, send,
+                 table="paper_trades_scalp", label="scalp") -> None:
         self.r = r
         self.rules = PaperRules(enabled=True, start_balance_usd=r.start_balance_usd, trade_usd=r.trade_usd,
                                 fee_pct=paper.fee_pct, slippage_pct=r.slippage_pct, max_open=r.max_open)
-        self.book = PaperTrader(db, self.rules, table="paper_trades_scalp", label="scalp")
+        self.book = PaperTrader(db, self.rules, table=table, label=label)
         self.cf = cost_factor(self.rules)
         self.send = send                                  # async (text, chain, address, symbol, pair)
         self.held: dict[str, _Hold] = {}
@@ -194,3 +195,4 @@ class Scalper:
                 if msg:
                     await self.send(msg, h.chain, addr, h.symbol, h.pair or pairs.get(addr, ""))
         await self._check_dips(prices)
+

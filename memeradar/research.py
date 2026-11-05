@@ -201,7 +201,7 @@ not a reconstruction of the production fast-radar strategy.
             "promotion": "NOT VALIDATED: quote simulation; no automatic promotion"}
 
 
-BOOKS = {"fast": "paper_trades", "grad": "paper_trades_grad", "scalp": "paper_trades_scalp",
+BOOKS = {"recovery": "paper_trades_recovery", "scalp_under2": "paper_trades_scalp_under2", "fast": "paper_trades", "grad": "paper_trades_grad", "scalp": "paper_trades_scalp",
          "steady": "paper_trades_steady", "steady_v1": "paper_trades_steady_v1"}
 
 

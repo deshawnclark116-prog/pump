@@ -14,6 +14,7 @@ from . import alerts, exits, safety, scoring, stage, steady
 from .grad import GradPlay
 from .paper import PaperTrader, cost_factor
 from .scalp import Scalper
+from .candidates import RecoveryPaper, UnderTwoScalper
 from .config import Config
 from .http import Http
 from .models import TokenState
@@ -77,6 +78,9 @@ class Radar:
         self.paper = PaperTrader(self.store.db, cfg.paper)
         self.grad = GradPlay(cfg, self.store.db, self._grad_note) if cfg.grad.enabled else None
         self.scalp = Scalper(cfg.scalp, cfg.paper, self.store.db, self._scalp_note) if cfg.scalp.enabled else None
+        self.candidates = ([RecoveryPaper(self.store.db, self._scalp_note),
+                            UnderTwoScalper(cfg.scalp, cfg.paper, self.store.db, self._scalp_note)]
+                           if cfg.paper_candidates_enabled else [])
         self.books = {"fast": self.paper,
                       "steady": PaperTrader(self.store.db, cfg.paper, table="paper_trades_steady", label="steady"),
                       "steady_v1": PaperTrader(self.store.db, cfg.paper, table="paper_trades_steady_v1",
@@ -297,6 +301,11 @@ class Radar:
                     await self.scalp.consider(t)
                 except Exception:  # noqa: BLE001  a scalper bug must never stop the main radar
                     log.exception("scalp consider failed")
+            for candidate in self.candidates:
+                try:
+                    await candidate.consider(t)
+                except Exception:
+                    log.exception("paper candidate consider failed")
             if self._confirmed(t, now):
                 if await self._enter(t, now, "fast"):
                     alerted.append(t)
@@ -520,6 +529,9 @@ class Radar:
         if self.grad and self.pump:
             tasks.append(self._every(cfg.grad.poll_seconds, self.grad_scan))
             tasks.append(self._every(cfg.exits.check_interval, self.grad_manage))
+        for candidate in self.candidates:
+            tasks.append(self._every(cfg.exits.check_interval,
+                                     lambda c=candidate: c.manage(self.http)))
         tasks.append(self._every(3600, self.housekeeping))
         if not duration:  # long-running server: tell the phone it's alive
             watching = len(self.positions)
