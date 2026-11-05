@@ -123,6 +123,8 @@ class Config:
     grad: GradRules = field(default_factory=GradRules)
     scalp: ScalpRules = field(default_factory=ScalpRules)
 
+    paper_candidates_enabled: bool = True
+
     smart_wallets: set[str] = field(default_factory=set)
 
 
@@ -164,3 +166,4 @@ def load_config(path: str | None = None) -> Config:
             if line.split("#", 1)[0].strip()
         }
     return cfg
+

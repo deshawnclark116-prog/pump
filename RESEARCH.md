@@ -108,3 +108,22 @@ evaluation archives before expiry for longer studies.
 
 Promotion is manual and requires prospective evidence plus execution validation.
 No automatic promotion or real-money path is added. Free operation is retained.
+
+## Forward paper candidates (enabled)
+
+`paper_candidates_enabled = true` now starts two independent $100 fake-money
+books, $10 per trade, up to five positions each. Existing balances are untouched.
+Alerts identify `PAPER (recovery)` and `PAPER (scalp under 2x)`; both appear in
+`paper` reports and ledger audits. No wallet or transaction path exists.
+
+Recovery uses the fixed v1 entry thresholds above, including a later entry
+observation after its bounce signal. It polls held positions through the existing
+three-second paper exit loop; unlike the offline conservative simulator, it sells
+at the observed exit quote without an additional 15-second simulated exit delay.
+It therefore has its own forward ledger and must not be pooled with replay results.
+Open positions and used mints survive restarts; unfilled watches reset on restart.
+
+Under-2x uses the existing scalper settings and costs, with the additional run-up
+filter at watch creation and actual entry. Its closed-trade cooldowns and open
+positions reload across restarts. This isolates the proposed filter; inherited
+scalper execution limitations remain. Neither candidate is declared profitable.

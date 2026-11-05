@@ -6,6 +6,9 @@
 # Note: GitHub pauses timers after 60 days with no commits; re-enable from the Actions tab.
 name: radar
 on:
+  push:
+    branches: [ccr-bbdb2d78-8yqlgn]
+    paths: ['memeradar/candidates.py']
   workflow_dispatch:
   schedule:
     - cron: "7 * * * *"
