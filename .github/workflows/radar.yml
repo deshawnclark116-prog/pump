@@ -8,7 +8,7 @@ name: radar
 on:
   push:
     branches: [ccr-bbdb2d78-8yqlgn]
-    paths: ['memeradar/candidates.py']
+    paths: ['memeradar/candidates.py', 'memeradar/forward_models.py', 'memeradar/pipeline.py', '.github/workflows/radar.yml']
   workflow_dispatch:
   schedule:
     - cron: "7 * * * *"
