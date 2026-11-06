@@ -1,0 +1,22 @@
+name: paper model tests
+on:
+  push:
+    branches: [paper-forward-models-20261105, ccr-bbdb2d78-8yqlgn]
+    paths:
+      - 'memeradar/forward_models.py'
+      - 'memeradar/pipeline.py'
+      - 'memeradar/research.py'
+      - 'memeradar/__main__.py'
+      - 'tests/test_forward_models.py'
+      - '.github/workflows/paper-model-tests.yml'
+  workflow_dispatch:
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r requirements.txt pytest
+      - run: python -m pytest -q
