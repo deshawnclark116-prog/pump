@@ -48,7 +48,7 @@ async def report(cfg) -> None:
 
 
 def paper_report(cfg) -> None:
-    from .paper import PaperTrader
+    from .paper import PaperTrader, PaperRules
     from .scalp import Scalper
     db = Store(cfg.db_path).db
     for title, trader in (("FAST RADAR", PaperTrader(db, cfg.paper)),
@@ -60,7 +60,10 @@ def paper_report(cfg) -> None:
                                                           label="grad")),
                           ("SCALPER", Scalper(cfg.scalp, cfg.paper, db, None).book),
                           ("RECOVERY PAPER", PaperTrader(db, cfg.paper, table="paper_trades_recovery", label="recovery")),
-                          ("SCALP UNDER 2X", PaperTrader(db, cfg.paper, table="paper_trades_scalp_under2", label="scalp under 2x"))):
+                          ("SCALP UNDER 2X", PaperTrader(db, cfg.paper, table="paper_trades_scalp_under2", label="scalp under 2x")),
+                          ("PULSE BREAKOUT", PaperTrader(db, PaperRules(start_balance_usd=250), table="paper_trades_pulse", label="pulse breakout")),
+                          ("BUYER FLOW", PaperTrader(db, PaperRules(start_balance_usd=250), table="paper_trades_flow", label="buyer flow")),
+                          ("DIP RECLAIM", PaperTrader(db, PaperRules(start_balance_usd=250), table="paper_trades_reclaim", label="dip reclaim"))):
         print(f"===== {title}")
         _paper_book(trader)
 

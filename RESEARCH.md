@@ -127,3 +127,29 @@ Under-2x uses the existing scalper settings and costs, with the additional run-u
 filter at watch creation and actual entry. Its closed-trade cooldowns and open
 positions reload across restarts. This isolates the proposed filter; inherited
 scalper execution limitations remain. Neither candidate is declared profitable.
+
+## Distinct forward paper hypotheses (November 2026)
+
+Branch `paper-forward-models-20261105` adds three independent, explicitly
+unvalidated experiments without modifying the live rules of the prior books:
+pulse breakout (two increasing quotes), buyer-flow accumulation (measured
+increase in five-minute unique buyer count), and controlled dip reclaim (a
+less restrictive alternative to recovery-v1 with a later entry observation).
+
+The fixed initial recipes are implemented in `memeradar/forward_models.py`.
+Each starts with $250 fake cash, uses $10 entries, up to 8 positions, and
+1.25% side fees plus 1% modeled side slippage. Each records actual simulated
+entries and exits in its own persistent SQLite table and appears in both
+`paper` output and `research --audit`. Paper books share the same scored
+token universe and may select the same assets, so results are **correlated**.
+
+Before activation, a diagnostic count over the prior 24-hour saved scored
+snapshots suggested around 12 pulse, 22 flow and 25 reclaim qualifying
+sequences. These are retrospective indications of possible trading frequency,
+NOT executed trades, NOT a calibrated estimate of profitability, and NOT
+grounds to retune the rules to that window. The forward paper run begins only
+after deployment. Compare strategy P&L **per $10 entry**, win/loss payout,
+profit factor, drawdown, number of opportunities per day, and sensitivity to
+execution cost. Compare to the original under-2x scalp on identical dates.
+Unresolved and open positions must remain visible in reports. Do not declare
+a winner based on a single day or overlapping snapshot replay.

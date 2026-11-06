@@ -221,3 +221,35 @@ python -m memeradar paper
 pip install pytest && pytest -q
 python -m memeradar -v run --duration 120 --no-pumpportal   # short smoke run
 ```
+
+## Forward paper strategy experiments (November 2026)
+
+Five optional independent candidates run alongside the older strategies when
+`paper_candidates_enabled = true` (enabled by default). They **never trade a
+wallet**. Their ledgers and alerts stay separate. The original recovery and
+under-2x scalper are unchanged; the three new experiments are:
+
+| Candidate | What triggers its paper buy | Starting fake capital | Exit rule |
+|---|---|---:|---|
+| Pulse breakout | Two consecutive higher observations during fresh real-pool momentum | $250 | +22% / -12%, 8-min cap |
+| Buyer flow | Unique buyers growing while price stays near its initial observation | $250 | +16% / -11%, 12-min cap |
+| Dip reclaim | Initial impulse, controlled 5-23% pullback and confirmed rebound | $250 | +20% / -12%, 10-min cap |
+
+All use $10 virtual entries, an eight-position limit, a separate cooldown and
+1.25% per-side fees plus 1% modeled slippage per side. A watch is not a trade:
+market and buyer observations must be fresh; token safety, liquidity, volume,
+real-pool status and two-sided buying are rechecked before any paper entry.
+Watches reset when the runner restarts; held positions and recorded cooldowns
+reload from the cached SQLite database.
+
+The `python -m memeradar paper` report prints each new ledger, and
+`python -m memeradar.research --audit` includes them in its exact closed-trade
+audit. Do not pool trade counts or capital across ledgers as if independent
+market opportunities. The three hypotheses can buy the same coin; outcomes
+are correlated. Their larger capital is a testing choice, not performance.
+
+**These are experiments, not validated profitable strategies.** More entry
+attempts may increase losses. Signal counts from recorded snapshots are not
+executable fills; price impact, stale upstream quotes, MEV and transaction
+failures remain unmodeled. Only forward, net-of-cost results and liquidity
+stress should drive a later promotion decision.
