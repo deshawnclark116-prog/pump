@@ -14,7 +14,8 @@ on:
     - cron: "7 * * * *"
 concurrency:
   group: radar
-  cancel-in-progress: false
+  # A new code push replaces a stale runner; ordinary hourly schedules never interrupt it.
+  cancel-in-progress: ${{ github.event_name == 'push' }}
 jobs:
   scan:
     runs-on: ubuntu-latest
