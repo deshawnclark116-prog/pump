@@ -10,6 +10,8 @@ subreddits = ["memecoins", "solanamemecoins", "CryptoMoonShots", "SatoshiStreetB
 
 score_interval = 20           # seconds between scoring cycles
 max_tracked_tokens = 300
+# Five independent paper candidates (recovery, under-2x, pulse, flow, reclaim); no real orders.
+paper_candidates_enabled = true
 
 # Phase-1 pre-filter: only tokens above these levels hit the safety APIs
 min_volume_h1_usd = 10000
