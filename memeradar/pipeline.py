@@ -15,6 +15,7 @@ from .grad import GradPlay
 from .paper import PaperTrader, cost_factor
 from .scalp import Scalper
 from .candidates import RecoveryPaper, UnderTwoScalper
+from .forward_models import PulseBreakout, FlowAccumulation, DipReclaim
 from .config import Config
 from .http import Http
 from .models import TokenState
@@ -79,7 +80,10 @@ class Radar:
         self.grad = GradPlay(cfg, self.store.db, self._grad_note) if cfg.grad.enabled else None
         self.scalp = Scalper(cfg.scalp, cfg.paper, self.store.db, self._scalp_note) if cfg.scalp.enabled else None
         self.candidates = ([RecoveryPaper(self.store.db, self._scalp_note),
-                            UnderTwoScalper(cfg.scalp, cfg.paper, self.store.db, self._scalp_note)]
+                            UnderTwoScalper(cfg.scalp, cfg.paper, self.store.db, self._scalp_note),
+                            PulseBreakout(self.store.db, self._scalp_note),
+                            FlowAccumulation(self.store.db, self._scalp_note),
+                            DipReclaim(self.store.db, self._scalp_note)]
                            if cfg.paper_candidates_enabled else [])
         self.books = {"fast": self.paper,
                       "steady": PaperTrader(self.store.db, cfg.paper, table="paper_trades_steady", label="steady"),
