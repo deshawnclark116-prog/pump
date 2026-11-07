@@ -150,7 +150,11 @@ def recent_attention(db, mint, now, window=300):
 
 def brief(db):
     result = {}
-    for table in ("attention_hits","attention_trends","attention_chain","attention_safety",
+    # The experimental forward paper ledger is independent of the validated model.
+    from .explore import ensure as ensure_explore
+    ensure_explore(db)
+    for table in ("attention_explore_signals","attention_explore_trades","attention_hits",
+                  "attention_trends","attention_chain","attention_safety",
                   "attention_models","attention_predictions","attention_paper_trades"):
         result[table] = db.execute("SELECT COUNT(*) FROM "+table).fetchone()[0]
     result["sources"] = [dict(r) for r in db.execute(
