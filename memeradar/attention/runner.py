@@ -36,5 +36,19 @@ async def run_collectors(http,db):
         if outcome["status"]=="forward_paper_only" and (outcome["entries"] or outcome["exits"]):
             log.info("attention paper: %s",outcome)
 
-    tasks=[interval(60,social),interval(30,market),attention.listen_telegram(db)]
+    async def security():
+        result=await chain.poll_safety(http,db)
+        if result["safety_checked"]:
+            log.info("attention RugCheck: %s",result)
+
+    async def maintenance():
+        # Collect 2-4 weeks of full-resolution evidence, then bound cache growth.
+        cutoff=time.time()-45*86400
+        db.execute("DELETE FROM attention_chain WHERE observed_ts < ?",(cutoff,))
+        db.execute("DELETE FROM attention_hits WHERE observed_ts < ?",(cutoff,))
+        db.execute("DELETE FROM attention_safety_history WHERE checked_ts < ?",(cutoff,))
+        db.commit()
+
+    tasks=[interval(60,social),interval(30,market),interval(60,security),
+           interval(21600,maintenance),attention.listen_telegram(db)]
     await asyncio.gather(*tasks)
