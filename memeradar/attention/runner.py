@@ -6,7 +6,7 @@ import logging
 import time
 
 from . import db as evidence
-from . import attention, chain, trader
+from . import attention, chain, trader, public_sources
 
 log=logging.getLogger(__name__)
 
@@ -28,6 +28,9 @@ async def run_collectors(http,db):
     async def social():
         await attention.poll_social(http,db)
 
+    async def public():
+        await public_sources.poll_public(http, db)
+
     async def market():
         result=await chain.poll_chain(http,db)
         if result["tracked"]:
@@ -46,9 +49,10 @@ async def run_collectors(http,db):
         cutoff=time.time()-45*86400
         db.execute("DELETE FROM attention_chain WHERE observed_ts < ?",(cutoff,))
         db.execute("DELETE FROM attention_hits WHERE observed_ts < ?",(cutoff,))
+        db.execute("DELETE FROM attention_trends WHERE observed_ts < ?",(cutoff,))
         db.execute("DELETE FROM attention_safety_history WHERE checked_ts < ?",(cutoff,))
         db.commit()
 
-    tasks=[interval(60,social),interval(30,market),interval(60,security),
+    tasks=[interval(60,social),interval(600,public),interval(30,market),interval(60,security),
            interval(21600,maintenance),attention.listen_telegram(db)]
     await asyncio.gather(*tasks)
