@@ -203,6 +203,7 @@ not a reconstruction of the production fast-radar strategy.
 
 BOOKS = {"recovery": "paper_trades_recovery", "scalp_under2": "paper_trades_scalp_under2",
          "pulse": "paper_trades_pulse", "flow": "paper_trades_flow", "reclaim": "paper_trades_reclaim",
+         "attention_paper": "attention_paper_trades",
          "fast": "paper_trades", "grad": "paper_trades_grad", "scalp": "paper_trades_scalp",
          "steady": "paper_trades_steady", "steady_v1": "paper_trades_steady_v1"}
 
