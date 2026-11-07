@@ -253,3 +253,19 @@ attempts may increase losses. Signal counts from recorded snapshots are not
 executable fills; price impact, stale upstream quotes, MEV and transaction
 failures remain unmodeled. Only forward, net-of-cost results and liquidity
 stress should drive a later promotion decision.
+
+
+## Attention Lead (social attention before the buying wave)
+
+A separate **data-only Solana research lane** is available in
+[`ATTENTION_RESEARCH.md`](ATTENTION_RESEARCH.md). It listens to explicitly
+authorized Telegram channels, optional budgeted X search, and approved Reddit
+OAuth; records first-seen Solana mint mentions and DexScreener/RugCheck
+observations in the existing `memeradar.db`. After at least 14 days of real
+data it can train a chronology-checked model to forecast a **future
+buy-volume proxy**, evaluate a 3x-liquidity entry rule, and eventually
+paper-trade with a separate ledger. No wallet/swap code exists, and paper is
+disabled. The radar runner includes the collection tasks, but without
+the required social credentials they correctly report source status
+`disabled`; this does **not** constitute an active X/Telegram/Reddit feed.
+`python -m memeradar.attention status` provides a source/data audit.
