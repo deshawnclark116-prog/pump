@@ -48,9 +48,10 @@ def buy_arrived(rows,entry_ts,now):
 def eligible(db, mint,ts,liq):
     if liq<15000:
         return False
-    row=db.execute("SELECT state,checked_ts FROM attention_safety WHERE mint=?",(mint,)).fetchone()
-    return bool(row and row["state"]=="passed" and row["checked_ts"]<=ts
-                and ts-row["checked_ts"]<=3600)
+    row=db.execute("SELECT state,checked_ts FROM attention_safety_history "
+                   "WHERE mint=? AND checked_ts<=? ORDER BY checked_ts DESC LIMIT 1",
+                   (mint,ts)).fetchone()
+    return bool(row and row["state"]=="passed" and ts-row["checked_ts"]<=3600)
 
 
 def observations(db,since,until):
@@ -86,7 +87,7 @@ def signals(db,spec,since,until):
             if not eligible(db,mint,ts,liq) or future<3*liq:
                 continue
             output.append(dict(mint=mint,ts=ts,predicted=future,liq=liq,
-                               signal_price=row["price_usd"],x=x))
+                               signal_price=row["price_usd"],seen=row["buy_volume_proxy_m5"],x=x))
             latest_sample=ts
     return sorted(output,key=lambda s:s["ts"]),chain
 
