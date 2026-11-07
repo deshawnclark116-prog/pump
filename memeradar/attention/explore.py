@@ -88,30 +88,34 @@ def _latest_quote(db, mint, now):
 
 
 def _latest_events(db, variant, now, started):
-    """Only reception-timed source events observed AFTER paper experiment start."""
+    """Newly received source evidence, including the real source identity."""
     since = max(started, now-MAX_SIGNAL_AGE_SEC)
     if variant == VERSIONS[0]:
         rows = db.execute(
-            "SELECT mint,MAX(observed_ts) source_ts, NULL AS rank "
-            "FROM attention_hits "
+            "SELECT mint,observed_ts,source FROM attention_hits "
             "WHERE source IN ('bluesky','4chan_biz','telegram','x','reddit') "
-            "AND observed_ts>? AND observed_ts<=? GROUP BY mint "
-            "ORDER BY source_ts DESC LIMIT 150", (since, now)).fetchall()
-        return [(r["mint"],r["source_ts"],None) for r in rows]
+            "AND observed_ts>? AND observed_ts<=? "
+            "ORDER BY observed_ts DESC LIMIT 300", (since, now)).fetchall()
+        found = set()
+        result = []
+        for r in rows:
+            if r["mint"] not in found:
+                found.add(r["mint"])
+                result.append((r["mint"],r["observed_ts"],None,r["source"]))
+        return result
     rows = db.execute(
         "SELECT mint,observed_ts,rank FROM attention_trends "
         "WHERE source='geckoterminal_trending' AND mint IS NOT NULL "
         "AND rank BETWEEN 1 AND 10 AND observed_ts>? AND observed_ts<=? "
         "ORDER BY observed_ts DESC,rank ASC LIMIT 300", (since, now)).fetchall()
-    found=set()
-    result=[]
+    found = set()
+    result = []
     for r in rows:
         if r["mint"] in found:
             continue
         found.add(r["mint"])
-        result.append((r["mint"],r["observed_ts"],r["rank"]))
+        result.append((r["mint"],r["observed_ts"],r["rank"],"geckoterminal_trending"))
     return result
-
 
 def _cash(db, variant):
     row=db.execute(
@@ -207,8 +211,7 @@ def _fill_signals(db,now):
 def _queue_signals(db, now, started):
     queued=0
     for variant in VERSIONS:
-        source="social" if variant==VERSIONS[0] else "geckoterminal_trending"
-        for mint, source_ts, rank in _latest_events(db,variant,now,started):
+        for mint, source_ts, rank, source in _latest_events(db,variant,now,started):
             if db.execute(
                 "SELECT 1 FROM attention_explore_signals "
                 "WHERE variant=? AND mint=? AND source_ts=?",
@@ -233,7 +236,7 @@ def _queue_signals(db, now, started):
             # Conservative enough for first paper receipts; NOT calibrated.
             if liq<15000 or row["price_usd"]<=0 or (row["market_cap"] or 0)<15000:
                 continue
-            if source=="social":
+            if variant==VERSIONS[0]:
                 meets=(vol>=500 and buyers>=5 and buyers>=sellers and proxy>=250)
             else:
                 meets=(rank<=10 and vol>=1500 and buyers>=12
