@@ -9,12 +9,12 @@ rules or ledgers are changed by this lane.
 
 | Script | Responsibility |
 |---|---|
-| `memeradar/attention/attention.py` | Authenticate to X, approved Reddit OAuth, and user-authorized Telegram channels. Validate Solana 32-byte mint; capture first-seen event, source, posted time, observed time, known engagement/audience. No raw post text stored. |
+| `memeradar/attention/public_sources.py` | Poll credential-free Bluesky search and /biz/ catalog for verified recent Solana mint posts every 10 minutes. Independently store GeckoTerminal trending pool ranks and CoinGecko search-trending ranks. Market rankings are not represented as social posts; ticker-only CoinGecko entries remain unresolved. |\n| `memeradar/attention/attention.py` | Authenticate to X, approved Reddit OAuth, and user-authorized Telegram channels. Validate Solana 32-byte mint; capture first-seen event, source, posted time, observed time, known engagement/audience. No raw post text stored. |
 | `memeradar/attention/chain.py` | Poll DexScreener token pools every 30 seconds (max 150 active mints, batches of <=30), select the deepest REAL Solana base-token pool, save quotes, 5-minute buy/sell transaction counts, liquidity and five-minute volume. Run independently recorded RugCheck security checks. |
 | `memeradar/attention/model.py` | Sample receipt-time social features, label FULLY observed next-60-minute *buy-volume proxy*, train a regularized log-volume regression with chronological, token-disjoint validation and baseline comparison. Require at least 14 days of evidence. |
 | `memeradar/attention/backtest.py` | Replay only timestamps and evidence available at the time of each signal. Fill on the NEXT quote, apply safety/freshness checks, use 3x liquidity signal, exit on 75% arrived proxy, -30% net or 60 minutes. Count missing quotes as unresolved. |
 | `memeradar/attention/trader.py` | Later optional **forward paper-only** simulator, independently gated by training validation and ATTENTION_PAPER_ENABLED. No Jupiter calls or signatures. |
-| `memeradar/attention/db.py` | Own tables within the same existing SQLite file `memeradar.db`. Source-cursor state, de-duplication, quote history, RugCheck history, frozen model metrics and separate paper ledger. |
+| `memeradar/attention/db.py` | Own tables within the same existing SQLite file `memeradar.db`. Source-cursor state, de-duplication, quote history, trend ranking snapshots, RugCheck history, frozen model metrics and separate paper ledger. |
 | `memeradar/attention/runner.py` | Run alongside the radar in the SAME process/SQLite database, so the existing GitHub Actions cache and research exports preserve it. |
 
 ## What is *not* established
@@ -98,7 +98,7 @@ The status command reports event counts, source health, quote count, trained
 models, and paper trade records. Do **not** infer no trade from an inaccessible
 live GitHub log; use completed artifacts for authoritative saved ledger state.
 
-After collecting 2–4 weeks of sufficiently complete real observations:
+Public collectors run even without Telegram, X, or Reddit credentials.\nOnly validated mints from Bluesky and /biz/ posts or from the market-side\nGeckoTerminal base-token relationship enter chain research. CoinGecko rankings\nwithout contract addresses remain research-only metadata. \nFour source health entries are tracked separately; a blocked response is an\nerror, not a zero-attention observation. Public API terms and access may change.\n\nAfter collecting 2–4 weeks of sufficiently complete real observations:
 
 ```bash
 python -m memeradar.attention lag-report
@@ -110,7 +110,7 @@ python -m memeradar.attention backtest --model attention_ridge_YYYYMMDD_HHMMSS \
 
 Training returns `insufficient_data` until minimum independent evidence
 exists: >=14 days, >=300 train examples, >=100 holdout examples, >=50
-train mints and at least one authorized social source. Validation uses
+train mints and at least one observed attention source (including market\ntrending signals, explicitly distinct from social posts). Validation uses
 a time-sorted holdout with a 2-hour embargo and no overlapping mints, and
 requires >5% error improvement over simple baselines. A validation pass is
 NOT proof of a tradable edge. Offline replay is allowed only **after**
@@ -140,3 +140,25 @@ until actual out-of-sample evidence exists.
 - RugCheck full reports: https://api.rugcheck.xyz
 - X paid read pricing: https://developer.x.com/
 - Reddit Data API policy: https://redditinc.com/policies/data-api-terms
+
+### Credential-free public feed specifics
+
+| Source | Collection | Signal used in the model |
+|---|---|---|
+| Bluesky | Search `api.bsky.app/xrpc/app.bsky.feed.searchPosts` for recent posts; preserve received/posted times, post URI hash, and engagement | Count of verified mint-bearing posts in last 5 minutes |
+| /biz/ | Official read-only `a.4cdn.org/biz/catalog.json`; catalog and preview replies only, conditionally polled every 10 minutes | Count of verified mint-bearing posts in last 5 minutes |
+| GeckoTerminal | `api.geckoterminal.com/api/v2/networks/solana/trending_pools`; verify relationship base-token mint; store ranks as market observations | Number of observed trending snapshots in last 5 minutes (market attention, not social) |
+| CoinGecko | `api.coingecko.com/api/v3/search/trending`; store ID, rank and symbol without guessing contract identity | No per-token signal until a verified address mapping is available |
+
+Because ranking observations are polled at 10-minute intervals, apparent
+trending source activity can be sparse in a five-minute feature window.
+The feature matrix is versioned; older models with incompatible feature
+ordering are rejected, not silently reused. None of the new sources
+automatically alters current trading strategies.
+
+4chan API documentation and usage terms:
+https://github.com/4chan/4chan-API (maximum one request per second,
+use conditional requests; source attribution https://boards.4channel.org/biz/).
+Bluesky documented rate limits: https://bsky.network/docs/rate-limits/
+GeckoTerminal rate limit: https://support.coingecko.com/articles/6867086195-does-geckoterminal-have-an-api
+CoinGecko public plan limits: https://support.coingecko.com/articles/5125303456-what-is-the-rate-limit-for-coingecko-api-public-plan
