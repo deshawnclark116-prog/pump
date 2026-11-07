@@ -541,7 +541,7 @@ class Radar:
         # No trading privileges; Telegram/X/Reddit collectors only run with their own credentials.
         if os.environ.get("ATTENTION_ENABLED") == "1":
             from .attention.runner import run_collectors
-            tasks.append(run_collectors(self.http, self.store.db))
+            tasks.append(run_collectors(self.http, self.store.db, self.cfg))
         tasks.append(self._every(3600, self.housekeeping))
         if not duration:  # long-running server: tell the phone it's alive
             watching = len(self.positions)
