@@ -162,40 +162,47 @@ async def listen_telegram(db):
     except ImportError:
         evidence.source_status(db,"telegram","error",detail="install telethon from requirements-attention.txt")
         return
+    client=None
     try:
-        async with TelegramClient(StringSession(session),int(app_id),app_hash) as client:
-            if not await client.is_user_authorized():
-                evidence.source_status(db,"telegram","error",detail="session not authorized")
-                return
-            entities=[]
-            for channel in channels:
-                try:
-                    entities.append(await client.get_entity(channel))
-                except Exception:
-                    log.warning("Telegram channel unavailable: %s",channel)
-            if not entities:
-                evidence.source_status(db,"telegram","error",detail="no joined/accessible channels")
-                return
+        # connect() NEVER prompts for interactive login in an unattended CI runner.
+        # A missing/expired StringSession must be treated as unavailable.
+        client=TelegramClient(StringSession(session),int(app_id),app_hash)
+        await client.connect()
+        if not await client.is_user_authorized():
+            evidence.source_status(db,"telegram","error",detail="session not authorized")
+            return
+        entities=[]
+        for channel in channels:
+            try:
+                entities.append(await client.get_entity(channel))
+            except Exception:
+                log.warning("Telegram channel unavailable: %s",channel)
+        if not entities:
+            evidence.source_status(db,"telegram","error",detail="no joined/accessible channels")
+            return
 
-            @client.on(events.NewMessage(chats=entities))
-            async def on_message(event):
-                msg=event.message
-                posted=msg.date.timestamp() if msg.date else None
-                count=ingest(db,"telegram",f"{event.chat_id}:{msg.id}",msg.raw_text or "",
-                             posted_ts=posted,engagement=getattr(msg,"views",None))
-                if count:
-                    log.info("telegram: captured %d validated mint(s)",count)
-                evidence.source_status(db,"telegram","ok",
-                                       detail=f"listening to {len(entities)} channels",ok=True)
-
+        @client.on(events.NewMessage(chats=entities))
+        async def on_message(event):
+            msg=event.message
+            posted=msg.date.timestamp() if msg.date else None
+            count=ingest(db,"telegram",f"{event.chat_id}:{msg.id}",msg.raw_text or "",
+                         posted_ts=posted,engagement=getattr(msg,"views",None))
+            if count:
+                log.info("telegram: captured %d validated mint(s)",count)
             evidence.source_status(db,"telegram","ok",
                                    detail=f"listening to {len(entities)} channels",ok=True)
-            await client.run_until_disconnected()
+
+        evidence.source_status(db,"telegram","ok",
+                               detail=f"listening to {len(entities)} channels",ok=True)
+        await client.run_until_disconnected()
     except asyncio.CancelledError:
         raise
     except Exception as exc:
         log.warning("Telegram listener disconnected: %s",type(exc).__name__)
         evidence.source_status(db,"telegram","error",detail=type(exc).__name__)
+    finally:
+        if client is not None:
+            await client.disconnect()
 
 
 async def poll_social(http, db):
