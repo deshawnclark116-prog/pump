@@ -19,9 +19,12 @@ import time
 from .db import ensure
 
 HORIZON=3600
-FEATURES=("x_posts","telegram_posts","reddit_posts","log_engagement","log_audience",
+FEATURES=("x_posts","telegram_posts","reddit_posts","bluesky_posts","biz_posts",
+          "gecko_trend_polls","log_engagement","log_audience",
           "log_buy_proxy_m5","log_liquidity","buy_ratio","price_change_5m")
-SOURCE_ORDER=("x","telegram","reddit")
+# GeckoTerminal is MARKET attention, not social chatter; it has its own feature.
+# CoinGecko rankings remain unmapped unless a verifiable Solana mint is supplied.
+SOURCE_ORDER=("x","telegram","reddit","bluesky","4chan_biz","geckoterminal_trending")
 MIN_DAYS=14
 MIN_TRAIN=300
 MIN_HOLDOUT=100
@@ -75,6 +78,13 @@ def examples(db,until=None):
     for hit in db.execute("SELECT source,mint,observed_ts,engagement,audience FROM attention_hits "
                           "WHERE observed_ts<=? ORDER BY mint,observed_ts",(until,)):
         all_hits[hit["mint"]].append(dict(hit))
+    # Preserve source identity: these are market trending observations, not posts.
+    for hit in db.execute("SELECT source,mint,observed_ts,NULL AS engagement,NULL AS audience "
+                          "FROM attention_trends WHERE source='geckoterminal_trending' "
+                          "AND mint IS NOT NULL AND observed_ts<=? ORDER BY mint,observed_ts",(until,)):
+        all_hits[hit["mint"]].append(dict(hit))
+    for items in all_hits.values():
+        items.sort(key=lambda r:r["observed_ts"])
     grouped=defaultdict(list)
     for r in db.execute("SELECT * FROM attention_chain WHERE observed_ts<=? "
                         "ORDER BY mint,observed_ts",(until,)):
@@ -106,6 +116,10 @@ def examples(db,until=None):
 
 def forecast(spec,x):
     """JSON coefficients; never unpickle unknown model data."""
+    if (spec.get("features") != list(FEATURES)
+            or len(x) != len(FEATURES)
+            or any(len(spec.get(key, [])) != len(FEATURES) for key in ("coef","mean","scale"))):
+        return 0.0  # obsolete feature order: fail closed, do not silently mis-score
     z=spec["intercept"]+sum(c*(v-m)/s for v,c,m,s in
                            zip(x,spec["coef"],spec["mean"],spec["scale"]))
     return max(0.,math.expm1(max(0.,min(25.,z))))
@@ -135,7 +149,7 @@ def train(db,now=None):
     rows=examples(db,until=now)
     train_rows,holdout,cutoff=_split(rows)
     days=(max(r["ts"] for r in rows)-min(r["ts"] for r in rows))/86400 if rows else 0
-    sources={SOURCE_ORDER[i] for r in train_rows for i in range(3) if r["x"][i]>0}
+    sources={SOURCE_ORDER[i] for r in train_rows for i in range(len(SOURCE_ORDER)) if r["x"][i]>0}
     summary={"status":"insufficient_data","rows":len(rows),"days":round(days,2),
              "train":len(train_rows),"holdout":len(holdout),
              "train_mints":len({r["mint"] for r in train_rows}),
@@ -222,4 +236,6 @@ def source_lags(db,limit=10000):
 def latest_model(db,required_status="retrospective_pass"):
     row=db.execute("SELECT * FROM attention_models WHERE status=? "
                    "ORDER BY created_ts DESC LIMIT 1",(required_status,)).fetchone()
-    return dict(row) if row else None
+    if not row or json.loads(row["model_json"]).get("features") != list(FEATURES):
+        return None
+    return dict(row)
