@@ -105,7 +105,7 @@ def paper_tick(db, now=None):
                        "(mint,observed_ts,model_version,predicted_future_buy_proxy,"
                        "already_seen_buy_proxy,waiting_buy_proxy,liquidity_usd,gate_reason) "
                        "VALUES (?,?,?,?,?,?,?,?)",
-                       (s["mint"],s["ts"],version,s["predicted"],s["x"][5],
+                       (s["mint"],s["ts"],version,s["predicted"],s["seen"],
                         s["predicted"],s["liq"],"queued"))
             queued+=1
     db.commit()
