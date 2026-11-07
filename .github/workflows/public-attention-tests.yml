@@ -22,3 +22,27 @@ jobs:
           python-version: '3.12'
       - run: python -m pip install -r requirements.txt pytest
       - run: python -m pytest -q
+      - name: Probe no-key feeds from GitHub Actions
+        timeout-minutes: 4
+        continue-on-error: true
+        run: |
+          python - <<'PY'
+          import asyncio
+          import json
+          from memeradar.http import Http
+          from memeradar.attention.db import connect, brief
+          from memeradar.attention.public_sources import poll_public
+
+          async def go():
+              http = Http()
+              db = connect(":memory:")
+              try:
+                  result = await poll_public(http, db)
+                  stats = brief(db)
+                  print(json.dumps({"polled": result, "social_hits": stats["attention_hits"],
+                      "trending_rows": stats["attention_trends"], "sources": stats["sources"]},
+                      indent=2))
+              finally:
+                  await http.close()
+          asyncio.run(go())
+          PY
