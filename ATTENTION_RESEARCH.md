@@ -1,5 +1,56 @@
 # Attention Lead: independent Solana social-attention research lane
 
+## Immediate, untrained forward PAPER experiment (opted in November 7, 2026)
+
+This is a **separate experimental baseline**, NOT the validated
+attention-delay / waiting-money model. It allows us to see what the
+current, real-time attention inputs would actually trigger before we
+have the required 2-4 weeks of complete observations.
+
+When `ATTENTION_EXPERIMENTAL_PAPER=1`, the existing radar polls this
+experiment after every 30-second market snapshot. Two **independent**
+fake-$250 books are recorded in `attention_explore_trades`:
+
+- `attention_social_probe_v0`: requires a NEW post carrying an explicit,
+  valid Solana mint from a social source (Bluesky, /biz/, or separately
+  authorized X/Telegram/Reddit); buyer activity, market quote, and RugCheck
+  must also pass.
+- `attention_gecko_trend_probe_v0`: requires a NEW GeckoTerminal Solana
+  trending-pool observation at rank 1-10. This is **market attention, not
+  social chatter**, and is evaluated independently.
+
+Both require >=$15k liquidity, >=$15k market cap, fresh <=90-second
+market quotes, RugCheck **passed** before signaling and before filling,
+and minimum five-minute buying volume/count. No ticker-only matches.
+We queue a signal on the first eligible quote but fill at the **next**
+available market snapshot at least 20 seconds later. A quote with
+>10% price run-up, an absent quote, or a stale safety result means no
+fill. Positions use **$10 simulated stakes**, maximum four open per
+book, a one-hour same-mint cooldown, and profit/loss triggers of
+**+20% / -20% net** or 30 minutes, with modeled 1.25% fees and 1%
+slippage EACH SIDE. Gaps can produce materially worse exits.
+
+The experiment records exact source time, signal time, actual simulated
+entry/exit timestamps, coin mint, price, costs, and net P&L. No fake
+positions are created from data observed before experiment activation;
+activation time is persisted in SQLite across restarts.
+
+Use:
+
+```bash
+python -m memeradar.attention explore-report
+```
+
+GitHub Actions prints the full report at the end of each run, and saves
+`research-output/attention-explore-trades.json` with the archive. Trades
+are **not trained predictions**, **not proof of profitability**, and
+never real swaps; no wallet or signer is connected. The original
+validated attention model remains gated by
+`ATTENTION_PAPER_ENABLED=0`.
+
+---
+
+
 **Status: data collection only. No live swaps, wallet integration, or paper trades enabled.**
 This is an *experiment* alongside Fast Radar, Graduation, Scalper, Recovery,
 Under-2x, Pulse, Buyer Flow and Dip Reclaim. None of those strategies' decision
