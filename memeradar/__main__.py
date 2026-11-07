@@ -66,6 +66,16 @@ def paper_report(cfg) -> None:
                           ("DIP RECLAIM", PaperTrader(db, PaperRules(start_balance_usd=250), table="paper_trades_reclaim", label="dip reclaim"))):
         print(f"===== {title}")
         _paper_book(trader)
+    # The new attention model has a separate schema and explicit training gate.
+    from .attention.db import ensure, brief
+    ensure(db)
+    state = brief(db)
+    print("===== ATTENTION RESEARCH (paper only after data + validation gate)")
+    print(f"social hits: {state['attention_hits']} · chain quotes: {state['attention_chain']} · "
+          f"trained models: {state['attention_models']}")
+    for ledger in state['paper']:
+        print(f"{ledger['model_version']}: {ledger['wins']} wins / {ledger['losses']} losses "
+              f"· {ledger['open']} open · net {ledger['pnl']:+.2f} fake USD")
 
 
 def _paper_book(trader) -> None:

@@ -6,6 +6,7 @@ a Raspberry Pi, a free cloud VM, or a GitHub Actions runner.
 from __future__ import annotations
 
 import asyncio
+import os
 import logging
 import time
 from collections import OrderedDict
@@ -536,6 +537,11 @@ class Radar:
         for candidate in self.candidates:
             tasks.append(self._every(cfg.exits.check_interval,
                                      lambda c=candidate: c.manage(self.http)))
+        # Research collectors share this radar's SQLite connection and cache lifecycle.
+        # No trading privileges; Telegram/X/Reddit collectors only run with their own credentials.
+        if os.environ.get("ATTENTION_ENABLED") == "1":
+            from .attention.runner import run_collectors
+            tasks.append(run_collectors(self.http, self.store.db))
         tasks.append(self._every(3600, self.housekeeping))
         if not duration:  # long-running server: tell the phone it's alive
             watching = len(self.positions)

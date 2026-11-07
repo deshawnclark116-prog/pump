@@ -3,6 +3,10 @@ __pycache__/
 .venv/
 *.db
 *.db-journal
+*.session
+*.session-journal
+.env
+.env.*
 config.toml
 smart_wallets.txt
 .pytest_cache/
