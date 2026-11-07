@@ -60,6 +60,11 @@ def observations(db,since,until):
     for r in db.execute("SELECT * FROM attention_hits WHERE observed_ts BETWEEN ? AND ? "
                         "ORDER BY mint,observed_ts",(since-300,until)):
         hits[r["mint"]].append(dict(r))
+    for r in db.execute(
+        "SELECT source,mint,observed_ts,NULL AS engagement,NULL AS audience "
+        "FROM attention_trends WHERE source='geckoterminal_trending' AND mint IS NOT NULL "
+        "AND observed_ts BETWEEN ? AND ?",(since-300,until)):
+        hits[r["mint"]].append(dict(r))
     for r in db.execute("SELECT * FROM attention_chain WHERE observed_ts BETWEEN ? AND ? "
                         "ORDER BY mint,observed_ts",(since-360,until+HORIZON+120)):
         chain[r["mint"]].append(dict(r))
@@ -100,6 +105,8 @@ def simulate(db,version,*,since,until):
         # No trading evaluation on the same held-out set used to choose the model.
         return {"status":"blocked","reason":"independent evaluation must start after model creation"}
     spec=json.loads(model["model_json"])
+    if spec.get("features") != list(FEATURES):
+        return {"status":"blocked","reason":"obsolete model feature schema; retrain"}
     candidates,chain=signals(db,spec,since,until)
     cash=CAPITAL; completed=[];unresolved=[]
     last_exit={}

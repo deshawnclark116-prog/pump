@@ -56,6 +56,8 @@ class Http:
             await self._wait_turn(host)
             try:
                 async with sess.request(method, url, **kwargs) as resp:
+                    if resp.status == 304:
+                        return {"_not_modified": True}  # conditional GET, not an API failure
                     if resp.status == 429 or resp.status >= 500:
                         backoff = min(60, 2 ** (attempt + 2))
                         log.warning("%s %s -> %s, backing off %ss", method, host, resp.status, backoff)

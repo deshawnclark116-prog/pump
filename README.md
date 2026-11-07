@@ -269,3 +269,28 @@ disabled. The radar runner includes the collection tasks, but without
 the required social credentials they correctly report source status
 `disabled`; this does **not** constitute an active X/Telegram/Reddit feed.
 `python -m memeradar.attention status` provides a source/data audit.
+
+### Free, no-account attention collectors
+
+With `ATTENTION_ENABLED=1` (already set in the GitHub radar workflow), the
+research lane also polls these **public sources every 10 minutes**, independently
+of paid/credentialed sources:
+
+- **Bluesky search** (`api.bsky.app`): recent public Solana/pump.fun posts.
+  Only explicit, valid Solana mint addresses are stored; no ticker guessing.
+- **/biz/ public read-only catalog** (`a.4cdn.org/biz/catalog.json`):
+  newly observed catalog posts and preview replies. Conditional GETs honor
+  `If-Modified-Since`; a 304 is not treated as a new mention.
+  Credit/source: https://boards.4channel.org/biz/
+- **GeckoTerminal Solana trending pools**: records pool rank and timestamp;
+  verified Solana base-token mints also get 30-second DexScreener/RugCheck
+  observations. This is a **market trend**, not an organic social post.
+- **CoinGecko trending searches**: records coin ID, symbol, rank, and time
+  **without** attributing a shared ticker to an unknown Solana mint.
+
+The public collectors require no keys. Source status (`ok`, `error`, or
+`not_modified`) and hit/trend counts appear in
+`python -m memeradar.attention status`. A source outage cannot create a
+synthetic observation. The 10-minute cadence can miss short-lived posts,
+and trending rankings are not proof of future buyers. No attention model
+or live-money trading is enabled until forward validation passes.
