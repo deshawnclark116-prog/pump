@@ -26,7 +26,7 @@ MIN_DAYS=14
 MIN_TRAIN=300
 MIN_HOLDOUT=100
 MIN_MINTS=50
-MIN_SOURCES=2
+MIN_SOURCES=1
 
 
 def features_for(row,hits,earlier=None):
@@ -177,6 +177,46 @@ def train(db,now=None):
     db.commit()
     summary["version"]=version
     return summary
+
+
+
+def source_lags(db,limit=10000):
+    """Descriptive post-to-following-buy-proxy peak delays, not causal lift.
+
+    Report only if we can observe future price/volume after a signal. Late-arriving
+    reposts and missing quotes remain omitted and must not be scored as zero lag.
+    """
+    result={}
+    sources={}
+    hits=db.execute("SELECT source,mint,observed_ts FROM attention_hits "
+                    "ORDER BY observed_ts DESC LIMIT ?",(limit,)).fetchall()
+    for hit in hits:
+        initial=db.execute("SELECT observed_ts,buy_volume_proxy_m5 FROM attention_chain "
+                           "WHERE mint=? AND observed_ts>=? AND observed_ts<=? "
+                           "ORDER BY observed_ts LIMIT 1",
+                           (hit["mint"],hit["observed_ts"],hit["observed_ts"]+120)).fetchone()
+        if not initial:
+            continue
+        following=db.execute("SELECT observed_ts,buy_volume_proxy_m5 FROM attention_chain "
+                             "WHERE mint=? AND observed_ts>? AND observed_ts<=? "
+                             "ORDER BY observed_ts",
+                             (hit["mint"],initial["observed_ts"],hit["observed_ts"]+3600)).fetchall()
+        if len(following)<30 or following[-1]["observed_ts"]<hit["observed_ts"]+3450:
+            continue
+        prev=initial["observed_ts"]
+        if any(r["observed_ts"]-last>120 for last,r in
+               zip([prev]+[x["observed_ts"] for x in following[:-1]],following)):
+            continue
+        winner=max(following,key=lambda r:r["buy_volume_proxy_m5"])
+        # An apparent lead time means little without a measurable increase.
+        if winner["buy_volume_proxy_m5"]<max(100,initial["buy_volume_proxy_m5"]*1.5):
+            continue
+        sources.setdefault(hit["source"],[]).append(
+            (winner["observed_ts"]-hit["observed_ts"])/60)
+    for source,vals in sources.items():
+        result[source]={"n":len(vals),"median_minutes_to_observed_peak":round(statistics.median(vals),1)}
+    return {"interpretation":"descriptive, conditional on a later proxy-volume increase; not causal",
+            "by_source":result}
 
 
 def latest_model(db,required_status="retrospective_pass"):
