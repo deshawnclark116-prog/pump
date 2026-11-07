@@ -62,14 +62,14 @@ async def notify_experimental_trades(http, db, cfg):
             pass
         name = "$"+symbol if symbol else mint[:9]+"..."
         if row["action"] == "BUY":
-            message = (f"🧪 ATTENTION PAPER BUY | {label} | {name}\\n"
-                       f"$10 fake money at ${row['price']:.10g} | source {row['source']}\\n"
-                       f"Simulated 20s+ delayed entry; no live swap.\\n{mint}")
+            message = (f"🧪 ATTENTION PAPER BUY | {label} | {name}\n"
+                       f"$10 fake money at ${row['price']:.10g} | source {row['source']}\n"
+                       f"Simulated 20s+ delayed entry; no live swap.\n{mint}")
         else:
             pnl = row["usd_out"]-row["usd_in"]
-            message = (f"🧪 ATTENTION PAPER SELL | {label} | {name}\\n"
-                       f"Net P&L {pnl:+.2f} USD | {row['reason']}\\n"
-                       f"Source {row['source']} | price ${row['price']:.10g}\\n{mint}")
+            message = (f"🧪 ATTENTION PAPER SELL | {label} | {name}\n"
+                       f"Net P&L {pnl:+.2f} USD | {row['reason']}\n"
+                       f"Source {row['source']} | price ${row['price']:.10g}\n{mint}")
         try:
             await alerts.send_text(
                 http, cfg, message, symbol=symbol or "?",
