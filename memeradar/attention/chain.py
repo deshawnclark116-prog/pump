@@ -56,7 +56,8 @@ def parse_snapshot(pair, mint, now):
 async def check_safety(http,db,mint,now=None):
     now=time.time() if now is None else now
     prior=db.execute("SELECT state,checked_ts FROM attention_safety WHERE mint=?",(mint,)).fetchone()
-    if prior and (prior["state"]!="unknown" or now-prior["checked_ts"]<900):
+    if prior and (prior["state"]=="failed" or
+                  now-prior["checked_ts"] < (900 if prior["state"]=="unknown" else 3600)):
         return prior["state"]
     report=await http.get(f"{RUG}{mint}/report")
     if not isinstance(report,dict) or report.get("mint")!=mint:
@@ -68,6 +69,8 @@ async def check_safety(http,db,mint,now=None):
     db.execute("INSERT INTO attention_safety VALUES (?,?,?,?) "
                "ON CONFLICT(mint) DO UPDATE SET checked_ts=excluded.checked_ts, "
                "state=excluded.state, reasons=excluded.reasons",
+               (mint,now,state,json.dumps(reasons)))
+    db.execute("INSERT OR IGNORE INTO attention_safety_history VALUES (?,?,?,?)",
                (mint,now,state,json.dumps(reasons)))
     db.commit()
     return state
@@ -83,7 +86,8 @@ async def poll_chain(http,db,*,now=None,limit=150):
     for mint in mints:
         prior=db.execute("SELECT state,checked_ts FROM attention_safety WHERE mint=?",
                          (mint,)).fetchone()
-        if prior and (prior["state"]!="unknown" or now-prior["checked_ts"]<900):
+        if prior and (prior["state"]=="failed" or
+                      now-prior["checked_ts"]<(900 if prior["state"]=="unknown" else 3600)):
             continue
         if checked>=4:
             break
