@@ -55,6 +55,9 @@ CREATE TABLE IF NOT EXISTS attention_explore_trades (
  FOREIGN KEY(signal_id) REFERENCES attention_explore_signals(id));
 CREATE INDEX IF NOT EXISTS attention_explore_trade_open
  ON attention_explore_trades(variant,exit_ts,mint);
+CREATE TABLE IF NOT EXISTS attention_explore_notifications (
+ trade_id INTEGER NOT NULL, action TEXT NOT NULL, notified_ts REAL NOT NULL,
+ PRIMARY KEY(trade_id,action));
 """
 
 
