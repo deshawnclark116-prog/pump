@@ -8,7 +8,7 @@ name: radar
 on:
   push:
     branches: [ccr-bbdb2d78-8yqlgn]
-    paths: ['memeradar/candidates.py', 'memeradar/forward_models.py', 'memeradar/pipeline.py', '.github/workflows/radar.yml']
+    paths: ['memeradar/candidates.py', 'memeradar/forward_models.py', 'memeradar/pipeline.py', 'memeradar/attention/**', 'requirements.txt', '.github/workflows/radar.yml']
   workflow_dispatch:
   schedule:
     - cron: "7 * * * *"
@@ -47,6 +47,18 @@ jobs:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          # Isolated research lane: the existing trading rules remain unchanged.
+          ATTENTION_ENABLED: "1"
+          ATTENTION_TELEGRAM_API_ID: ${{ secrets.ATTENTION_TELEGRAM_API_ID }}
+          ATTENTION_TELEGRAM_API_HASH: ${{ secrets.ATTENTION_TELEGRAM_API_HASH }}
+          ATTENTION_TELEGRAM_SESSION: ${{ secrets.ATTENTION_TELEGRAM_SESSION }}
+          ATTENTION_TELEGRAM_CHANNELS: ${{ vars.ATTENTION_TELEGRAM_CHANNELS }}
+          ATTENTION_X_BEARER_TOKEN: ${{ secrets.ATTENTION_X_BEARER_TOKEN }}
+          ATTENTION_X_POST_BUDGET_PER_DAY: ${{ vars.ATTENTION_X_POST_BUDGET_PER_DAY }}
+          ATTENTION_REDDIT_CLIENT_ID: ${{ secrets.ATTENTION_REDDIT_CLIENT_ID }}
+          ATTENTION_REDDIT_CLIENT_SECRET: ${{ secrets.ATTENTION_REDDIT_CLIENT_SECRET }}
+          ATTENTION_REDDIT_APPROVED: ${{ vars.ATTENTION_REDDIT_APPROVED }}
+          ATTENTION_PAPER_ENABLED: "0"
       - name: alerts so far
         if: always() && hashFiles('memeradar.db') != ''
         run: |
@@ -75,6 +87,7 @@ jobs:
           }, indent=2))
           PY
           python -m memeradar.research --db research-output/memeradar.db --audit --output research-output/audit.json
+          python -m memeradar.attention --db research-output/memeradar.db status > research-output/attention-status.json
           python -m memeradar.research --db research-output/memeradar.db --since "$(date -u -d '24 hours ago' +%Y-%m-%dT%H:%M:%SZ)" --until "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --output research-output/replay.json
       - uses: actions/upload-artifact@v4
         if: always() && hashFiles('research-output/audit.json') != ''
