@@ -7,7 +7,7 @@ import json
 import os
 
 from .db import connect, brief, remove_post
-from .model import train
+from .model import train, source_lags
 from .backtest import simulate
 
 
@@ -22,6 +22,7 @@ def main():
     cmds.add_parser("status")
     cmds.add_parser("collect")
     cmds.add_parser("train")
+    cmds.add_parser("lag-report")
     b=cmds.add_parser("backtest")
     b.add_argument("--model",required=True)
     b.add_argument("--since",required=True,type=utc)
@@ -35,6 +36,8 @@ def main():
         result=brief(db)
     elif args.cmd=="train":
         result=train(db)
+    elif args.cmd=="lag-report":
+        result=source_lags(db)
     elif args.cmd=="backtest":
         if args.since>=args.until:
             p.error("since must be before until")
