@@ -31,6 +31,12 @@ CREATE TABLE IF NOT EXISTS attention_safety_history (
  PRIMARY KEY(mint,checked_ts));
 CREATE INDEX IF NOT EXISTS attention_safety_hist_time
  ON attention_safety_history(mint,checked_ts);
+CREATE TABLE IF NOT EXISTS attention_trends (
+ source TEXT NOT NULL, source_id TEXT NOT NULL, observed_ts REAL NOT NULL,
+ mint TEXT, symbol TEXT, rank INTEGER,
+ PRIMARY KEY(source, source_id, observed_ts));
+CREATE INDEX IF NOT EXISTS attention_trend_mint_ts ON attention_trends(mint, observed_ts);
+CREATE INDEX IF NOT EXISTS attention_trend_source_time ON attention_trends(source, observed_ts);
 CREATE TABLE IF NOT EXISTS attention_source_state (
  source TEXT PRIMARY KEY, cursor TEXT, status TEXT NOT NULL,
  last_poll_ts REAL NOT NULL, last_success_ts REAL, detail TEXT);
@@ -109,13 +115,31 @@ def source_cursor(db, source):
     return row["cursor"] if row else None
 
 
-def active_mints(db, *, now=None, limit=150, age_seconds=6*3600):
-    now = time.time() if now is None else now
-    return [r[0] for r in db.execute(
-        "SELECT mint FROM attention_hits WHERE observed_ts>=? AND observed_ts<=? "
-        "GROUP BY mint ORDER BY MAX(observed_ts) DESC LIMIT ?",
-        (now-age_seconds, now, limit))]
+def record_trend(db, *, source, source_id, observed_ts=None, mint=None, symbol=None, rank=None):
+    """Record a sampled ranking. An absent mint is never resolved by ticker."""
+    observed_ts = time.time() if observed_ts is None else observed_ts
+    cur = db.execute(
+        "INSERT OR IGNORE INTO attention_trends "
+        "(source,source_id,observed_ts,mint,symbol,rank) VALUES (?,?,?,?,?,?)",
+        (source, source_id, observed_ts, mint, symbol, rank))
+    db.commit()
+    return cur.rowcount == 1
 
+
+def active_mints(db, *, now=None, limit=150, age_seconds=6*3600):
+    """Poll chain for verified social mints AND verified GeckoTerminal base tokens."""
+    now = time.time() if now is None else now
+    since = now-age_seconds
+    return [r[0] for r in db.execute(
+        "SELECT mint FROM ("
+        " SELECT mint, observed_ts FROM attention_hits"
+        " WHERE observed_ts>=? AND observed_ts<=?"
+        " UNION ALL"
+        " SELECT mint, observed_ts FROM attention_trends"
+        " WHERE source='geckoterminal_trending' AND mint IS NOT NULL"
+        " AND observed_ts>=? AND observed_ts<=?"
+        ") GROUP BY mint ORDER BY MAX(observed_ts) DESC LIMIT ?",
+        (since, now, since, now, limit))]
 
 def recent_attention(db, mint, now, window=300):
     return [dict(r) for r in db.execute(
@@ -126,7 +150,7 @@ def recent_attention(db, mint, now, window=300):
 
 def brief(db):
     result = {}
-    for table in ("attention_hits","attention_chain","attention_safety",
+    for table in ("attention_hits","attention_trends","attention_chain","attention_safety",
                   "attention_models","attention_predictions","attention_paper_trades"):
         result[table] = db.execute("SELECT COUNT(*) FROM "+table).fetchone()[0]
     result["sources"] = [dict(r) for r in db.execute(
