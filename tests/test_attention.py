@@ -75,7 +75,7 @@ def test_future_coverage_requires_complete_sequence():
     assert backtest.buy_arrived(rows,1000,4600)==6000
     assert model.future_proxy(rows,1000)==pytest.approx(6000)
     assert model.future_proxy(rows[:10],1000) is None
-    assert model.future_proxy(rows[2:],1000) is None # first gap 90 is permitted, but partial < horizon
+    assert model.future_proxy(rows[4:],1000) is None # missing first 150s is too large a gap
 
 
 def test_no_model_means_no_fabricated_paper_trades():
