@@ -111,8 +111,10 @@ def simulate(db,version,*,since,until):
         # Slots are occupied by any earlier entry whose exit has not yet occurred.
         active=sum(1 for t in trades if t["entry_ts"]<=ts and
                    (t["exit_ts"] is None or t["exit_ts"]>ts))
-        free_cash=CAPITAL-sum(TRADE_USD for t in trades if t["entry_ts"]<=ts
-                              and (t["exit_ts"] is None or t["exit_ts"]>ts))
+        free_cash=(CAPITAL
+                   -sum(TRADE_USD for t in trades if t["entry_ts"]<=ts)
+                   +sum(t["usd_out"] for t in trades
+                        if t["exit_ts"] is not None and t["exit_ts"]<=ts))
         if active>=5 or free_cash<TRADE_USD:
             continue
         next_row=next((r for r in rows if ts+20<=r["observed_ts"]<=ts+120),None)
