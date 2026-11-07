@@ -6,7 +6,7 @@ import logging
 import time
 
 from . import db as evidence
-from . import attention, chain, trader, public_sources
+from . import attention, chain, trader, public_sources, explore
 
 log=logging.getLogger(__name__)
 
@@ -38,6 +38,9 @@ async def run_collectors(http,db):
         outcome=trader.paper_tick(db)
         if outcome["status"]=="forward_paper_only" and (outcome["entries"] or outcome["exits"]):
             log.info("attention paper: %s",outcome)
+        exploratory=explore.paper_tick(db)
+        if exploratory.get("entries") or exploratory.get("exits") or exploratory.get("queued"):
+            log.info("ATTENTION EXPLORE PAPER: %s",exploratory)
 
     async def security():
         result=await chain.poll_safety(http,db)
