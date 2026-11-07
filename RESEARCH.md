@@ -153,3 +153,35 @@ profit factor, drawdown, number of opportunities per day, and sensitivity to
 execution cost. Compare to the original under-2x scalp on identical dates.
 Unresolved and open positions must remain visible in reports. Do not declare
 a winner based on a single day or overlapping snapshot replay.
+
+
+## Attention Lead v0.1 (research-only, locked initial hypotheses)
+
+This new lane is separate from all existing scalper experiments.
+Research registry: `memeradar/attention/{attention,chain,model,backtest,trader}.py`
+and setup details in `ATTENTION_RESEARCH.md`.
+
+- **Champion:** None. All old trade models remain independent comparators.
+- **Information:** Real first-received timestamps for validated Solana mint
+  mentions; 30s DexScreener pair/volume/transaction snapshots; RugCheck history.
+- **Hypothesis:** A source-specific attention burst leads a larger *future
+  volume-weighted buying proxy*, before the market fully reprices the coin.
+  This is NOT verified wallet-level buy USD or proof of causality.
+- **Frozen proposed rules:** project future 60m proxy; require prediction >=3x
+  current pool liquidity, next-quote simulated buy, 75% forecast-arrival exit,
+  -30% net stop, 60m time exit; independent $250/$10 fake balance, 1.25%
+  per-side fee and 1% per-side slippage.
+- **Stage:** Data collection only, no trades, no trained model. Initial
+  dataset must accumulate 14–28 days, then a temporal/token-disjoint model
+  holdout, then an independently timestamped replay, then optional 1–2 weeks
+  of forward paper. No wallet swaps.
+- **Promotion gate:** Outperform no-attention baselines after coverage and
+  costs, reliable source access, stable calibration, drawdown and repeat-entry
+  analysis; no holdout rescue tuning. If data access is absent, status remains
+  disabled; zero observed mentions != zero actual attention.
+- **Open hypotheses:** source lag effects, per-channel expertise, spam
+  coordination / paid campaigns, real buy/sell USD from Helius on-chain
+  evidence and quote/slippage realism.
+- **Known limits:** X costs money per retrieved post; Reddit OAuth/approval
+  is not automatically available. Post text and usernames are not persisted.
+  Telegram requires the operator's own authorized session in GitHub Secrets.
