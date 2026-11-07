@@ -26,6 +26,11 @@ CREATE TABLE IF NOT EXISTS attention_chain (
 CREATE INDEX IF NOT EXISTS attention_chain_time ON attention_chain(observed_ts);
 CREATE TABLE IF NOT EXISTS attention_safety (
  mint TEXT PRIMARY KEY, checked_ts REAL NOT NULL, state TEXT NOT NULL, reasons TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS attention_safety_history (
+ mint TEXT NOT NULL, checked_ts REAL NOT NULL, state TEXT NOT NULL, reasons TEXT NOT NULL,
+ PRIMARY KEY(mint,checked_ts));
+CREATE INDEX IF NOT EXISTS attention_safety_hist_time
+ ON attention_safety_history(mint,checked_ts);
 CREATE TABLE IF NOT EXISTS attention_source_state (
  source TEXT PRIMARY KEY, cursor TEXT, status TEXT NOT NULL,
  last_poll_ts REAL NOT NULL, last_success_ts REAL, detail TEXT);
