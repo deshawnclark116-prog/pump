@@ -168,3 +168,35 @@ def test_stale_quote_cannot_close_position_even_after_time_limit(monkeypatch):
     price(c,1070);explore.paper_tick(c,now=1070)
     assert explore.paper_tick(c,now=5000)["exits"]==0
     assert trades(c)[0]["exit_ts"] is None
+
+
+def test_phone_notifications_cover_buy_and_sell_once_even_after_restart(monkeypatch):
+    import asyncio
+    from memeradar.attention import runner
+    monkeypatch.setenv("ATTENTION_EXPERIMENTAL_PAPER","1")
+    sent=[]
+    async def send_text(http,cfg,message,**kw):
+        sent.append((message,kw))
+    monkeypatch.setattr(runner.alerts,"send_text",send_text)
+    class Cfg:
+        ntfy_topic="configured"
+        discord_webhook_url=""
+        telegram_bot_token=""
+        telegram_chat_id=""
+    c=db()
+    explore.paper_tick(c,now=1000)
+    hit(c,1010)
+    passed(c,1030)
+    price(c,1040)
+    explore.paper_tick(c,now=1040)
+    price(c,1070,1.0)
+    explore.paper_tick(c,now=1070)
+    assert asyncio.run(runner.notify_experimental_trades(None,c,Cfg()))==1
+    assert "PAPER BUY" in sent[0][0] and "bluesky" in sent[0][0]
+    assert asyncio.run(runner.notify_experimental_trades(None,c,Cfg()))==0
+    price(c,1100,1.30)
+    explore.paper_tick(c,now=1100)
+    assert asyncio.run(runner.notify_experimental_trades(None,c,Cfg()))==1
+    assert "PAPER SELL" in sent[1][0] and "Net P&L" in sent[1][0]
+    assert asyncio.run(runner.notify_experimental_trades(None,c,Cfg()))==0
+    assert c.execute("SELECT COUNT(*) FROM attention_explore_notifications").fetchone()[0]==2
