@@ -51,6 +51,8 @@ def ingest(db, source, external_id, text, *, posted_ts=None, engagement=None,
     # Backfilled/stale posts are not usable as "early discovery" even if first seen now.
     if posted_ts is not None and (posted_ts > now + 300 or posted_ts < now - 900):
         return 0
+    if not external_id:
+        return 0
     count = 0
     for mint in mints(text):
         if evidence.record_hit(db, source=source, post_id=external_id, mint=mint,
@@ -63,7 +65,7 @@ def ingest(db, source, external_id, text, *, posted_ts=None, engagement=None,
 async def poll_x(http, db):
     """X API is pay-per-read. Disabled unless an explicit daily post budget is set."""
     token = os.environ.get("ATTENTION_X_BEARER_TOKEN")
-    cap = int(os.environ.get("ATTENTION_X_POST_BUDGET_PER_DAY", "0"))
+    cap = int(os.environ.get("ATTENTION_X_POST_BUDGET_PER_DAY") or "0")
     if not token or cap <= 0:
         evidence.source_status(db, "x", "disabled", detail="bearer token or daily paid-read budget missing")
         return 0
