@@ -54,12 +54,15 @@ def parse_snapshot(pair, mint, now):
 
 
 async def check_safety(http,db,mint,now=None):
+    caller_now = now
     now=time.time() if now is None else now
     prior=db.execute("SELECT state,checked_ts FROM attention_safety WHERE mint=?",(mint,)).fetchone()
     if prior and (prior["state"]=="failed" or
                   now-prior["checked_ts"] < (900 if prior["state"]=="unknown" else 3600)):
         return prior["state"]
     report=await http.get(f"{RUG}{mint}/report")
+    # Do not date a security decision earlier than the instant it was received.
+    now = time.time() if caller_now is None else caller_now
     if not isinstance(report,dict) or report.get("mint")!=mint:
         state,reasons="unknown",["RugCheck unavailable or incomplete; fail closed"]
     else:
@@ -76,20 +79,18 @@ async def check_safety(http,db,mint,now=None):
     return state
 
 
-async def poll_chain(http,db,*,now=None,limit=150):
-    now=time.time() if now is None else now
-    mints=active_mints(db,now=now,limit=limit)
-    if not mints:
-        return {"tracked":0,"recorded":0,"safety_checked":0}
-    # Bound the number of RugCheck requests per cycle, even if a burst finds 100 mints.
+async def poll_safety(http,db,*,now=None,limit=4):
+    """Fail-closed RugCheck lane. Separate from market polling to avoid quote delays."""
+    check_at=time.time() if now is None else now
+    mints=active_mints(db,now=check_at,limit=150)
     checked=0
     for mint in mints:
         prior=db.execute("SELECT state,checked_ts FROM attention_safety WHERE mint=?",
                          (mint,)).fetchone()
         if prior and (prior["state"]=="failed" or
-                      now-prior["checked_ts"]<(900 if prior["state"]=="unknown" else 3600)):
+                      check_at-prior["checked_ts"] < (900 if prior["state"]=="unknown" else 3600)):
             continue
-        if checked>=4:
+        if checked>=limit:
             break
         try:
             await check_safety(http,db,mint,now=now)
@@ -98,10 +99,21 @@ async def poll_chain(http,db,*,now=None,limit=150):
         except Exception:
             log.exception("RugCheck failed for mint %s",mint)
         checked+=1
+    return {"tracked":len(mints),"safety_checked":checked}
+
+
+async def poll_chain(http,db,*,now=None,limit=150):
+    """Store reception-timestamped quotes; never wait for security API before polling."""
+    observed_at=time.time() if now is None else now
+    mints=active_mints(db,now=observed_at,limit=limit)
+    if not mints:
+        return {"tracked":0,"recorded":0}
     total=0
     for i in range(0,len(mints),30):
         group=mints[i:i+30]
         response=await http.get(DEX+",".join(group))
+        # A batch is only "known" when its HTTP response arrives.
+        received_at=time.time() if now is None else now
         if not isinstance(response,list):
             log.warning("DexScreener did not return a pair list for %d mints",len(group))
             continue
@@ -109,7 +121,7 @@ async def poll_chain(http,db,*,now=None,limit=150):
             p=best_pair(response,mint)
             if p is None:
                 continue
-            snap=parse_snapshot(p,mint,now)
+            snap=parse_snapshot(p,mint,received_at)
             if snap is None:
                 continue
             db.execute("INSERT OR IGNORE INTO attention_chain "
@@ -118,4 +130,4 @@ async def poll_chain(http,db,*,now=None,limit=150):
                        "VALUES (?,?,?,?,?,?,?,?,?,?)",snap)
             total+=1
     db.commit()
-    return {"tracked":len(mints),"recorded":total,"safety_checked":checked}
+    return {"tracked":len(mints),"recorded":total}
