@@ -1,0 +1,75 @@
+name: account-free source discovery probe
+on:
+  push:
+    branches: [account-free-source-probe-20261108]
+    paths:
+      - '.github/workflows/source-discovery-probe.yml'
+  workflow_dispatch:
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Check public feeds from same runner environment as trading radar
+        run: |
+          python - <<'PY'
+          import concurrent.futures, json, re, time
+          from urllib.request import Request, urlopen
+          from urllib.error import HTTPError
+
+          FEEDS = {
+            'hacker_news_new': 'https://hacker-news.firebaseio.com/v0/newstories.json',
+            'hacker_news_updates': 'https://hacker-news.firebaseio.com/v0/updates.json',
+            'google_trends_us': 'https://trends.google.com/trending/rss?geo=US',
+            'google_trends_jp': 'https://trends.google.com/trending/rss?geo=JP',
+            'gdelt_news_rss': 'https://data.gdeltproject.org/gdeltv3/gal/feed.rss',
+            'gdelt_15m_manifest': 'https://data.gdeltproject.org/gdeltv2/lastupdate.txt',
+            'lemmy_world': 'https://lemmy.world/api/v3/post/list?sort=New&limit=10',
+            'lemmy_ml': 'https://lemmy.ml/api/v3/post/list?sort=New&limit=10',
+            'mastodon_solana': 'https://mastodon.social/api/v1/timelines/tag/solana?limit=10',
+            'gecko_new_pools': 'https://api.geckoterminal.com/api/v2/networks/solana/new_pools',
+            'gecko_recent_metadata': 'https://api.geckoterminal.com/api/v2/tokens/info_recently_updated',
+            '4chan_biz_thread_index': 'https://a.4cdn.org/biz/threads.json',
+            'google_news_rss': 'https://news.google.com/rss/search?q=meme%20coin&hl=en-US&gl=US&ceid=US%3Aen',
+            'wikidata_recent': 'https://www.wikidata.org/w/api.php?action=query&list=recentchanges&rcprop=title%7Ctimestamp&rcnamespace=0&rclimit=10&format=json',
+            'youtube_channel_rss': 'https://www.youtube.com/feeds/videos.xml?channel_id=UCBR8-60-B28hp2BmDPdntcQ',
+            'steam_game_news': 'https://api.steampowered.com/ISteamNews/GetNewsForApp/v2/?appid=570&count=5',
+            'usgs_events': 'https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_hour.geojson',
+          }
+          UA = 'MemeDataProbe/0.1 (https://github.com/deshawnclark116-prog/pump; no-key public data research)'
+          def probe(entry):
+            name,url=entry
+            started=time.monotonic()
+            try:
+              req=Request(url,headers={'User-Agent':UA,'Accept':'application/json,application/rss+xml,application/xml,text/xml,text/plain;q=0.9'})
+              with urlopen(req,timeout=9) as response:
+                status=response.status
+                content_type=response.headers.get('Content-Type','')
+                data=response.read(512000)
+              shape=''
+              if 'json' in content_type.lower() or data[:1] in (b'[',b'{'):
+                try:
+                  o=json.loads(data)
+                  if isinstance(o,list):shape='json_list '+str(len(o))
+                  elif isinstance(o,dict):shape='json_object_keys '+','.join(sorted(o.keys())[:8])
+                  else:shape=type(o).__name__
+                except Exception:shape='json_partial'
+              elif b'<rss' in data[:200] or b'<feed' in data[:200]:
+                shape='xml_item_or_entry_count_in_sample '+str(data.count(b'<item>')+data.count(b'<entry>'))
+              else:
+                shape='text_or_other'
+              return {'source':name,'http':status,'bytes_sampled':len(data),'content_type':content_type.split(';')[0],'shape':shape,'duration_s':round(time.monotonic()-started,2)}
+            except HTTPError as e:
+              return {'source':name,'http':e.code,'error':'HTTPError','duration_s':round(time.monotonic()-started,2)}
+            except Exception as e:
+              return {'source':name,'http':None,'error':type(e).__name__+': '+str(e)[:95],'duration_s':round(time.monotonic()-started,2)}
+          with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
+            results=list(pool.map(probe,FEEDS.items()))
+          for item in results:
+            print('FEED_PROBE '+json.dumps(item,sort_keys=True))
+          print('FEED_PROBE_SUMMARY '+json.dumps({'total':len(results),'http_200':sum(x.get('http')==200 for x in results),'non_200':sum(x.get('http')!=200 for x in results)}))
+          PY
