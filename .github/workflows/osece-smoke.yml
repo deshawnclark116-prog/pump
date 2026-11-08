@@ -4,6 +4,7 @@ on:
     branches: [osece-forward-paper-v1-20261108]
     paths:
       - '.github/workflows/osece-smoke.yml'
+      - 'memeradar/osece/**'
   workflow_dispatch:
 jobs:
   check:
