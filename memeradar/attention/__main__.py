@@ -21,6 +21,7 @@ def main():
     cmds=p.add_subparsers(dest="cmd",required=True)
     cmds.add_parser("status")
     cmds.add_parser("explore-report")
+    cmds.add_parser("stress-report")
     cmds.add_parser("collect")
     cmds.add_parser("train")
     cmds.add_parser("lag-report")
@@ -35,6 +36,9 @@ def main():
     db=connect(args.db)
     if args.cmd=="status":
         result=brief(db)
+    elif args.cmd=="stress-report":
+        from .stress_survivor import report
+        result=report(db)
     elif args.cmd=="explore-report":
         from .explore import report
         result=report(db)

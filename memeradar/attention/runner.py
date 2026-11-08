@@ -6,7 +6,7 @@ import logging
 import time
 
 from . import db as evidence
-from . import attention, chain, trader, public_sources, explore
+from . import attention, chain, trader, public_sources, explore, stress_survivor
 from .. import alerts
 
 log=logging.getLogger(__name__)
@@ -86,6 +86,62 @@ async def notify_experimental_trades(http, db, cfg):
         delivered += 1
     return delivered
 
+async def notify_stress_survivor(http,db,cfg):
+    """Emit each stress-survivor fake buy/sell once; durable across restarts."""
+    if cfg is None or not (cfg.ntfy_topic or cfg.discord_webhook_url or
+            (cfg.telegram_bot_token and cfg.telegram_chat_id)):
+        return 0
+    stress_survivor.ensure(db)
+    events=db.execute("""
+        SELECT v.* FROM (
+          SELECT id trade_id,mint,'BUY' action,entry_ts event_ts,
+                 entry_price price,usd_in,NULL usd_out,NULL reason
+          FROM stress_survivor_trades
+          UNION ALL
+          SELECT id,mint,'SELL',exit_ts,exit_price,usd_in,usd_out,exit_reason
+          FROM stress_survivor_trades WHERE exit_ts IS NOT NULL
+        ) v WHERE NOT EXISTS (
+           SELECT 1 FROM stress_survivor_notifications n
+           WHERE n.trade_id=v.trade_id AND n.action=v.action
+        ) ORDER BY v.event_ts,v.trade_id LIMIT 40
+    """).fetchall()
+    delivered=0
+    for e in events:
+        mint=e["mint"]; symbol=None
+        try:
+            r=db.execute(
+                "SELECT symbol FROM tokens WHERE chain='solana' AND address=?",
+                (mint,)).fetchone()
+            symbol=r[0] if r and r[0] else None
+        except Exception:
+            pass
+        label="$"+symbol if symbol else mint[:12]+"..."
+        if e["action"]=="BUY":
+            message=(f"🛡️ STRESS SURVIVOR PAPER BUY | {label}\n"
+                     f"USD 10 fake at {e['price']:.10g}; peer selloff confirmed\n"
+                     f"Costs simulated, delayed quote, NO real swap\n{mint}")
+        else:
+            pnl=e["usd_out"]-e["usd_in"]
+            message=(f"🛡️ STRESS SURVIVOR PAPER SELL | {label}\n"
+                     f"Net P&L USD {pnl:+.2f} | {e['reason']}\n"
+                     f"Exit price {e['price']:.10g}; NO real swap\n{mint}")
+        try:
+            await alerts.send_text(
+                http,cfg,message,symbol=symbol or "?",
+                address=mint,link=alerts.chart_link("solana",mint),
+                kind="STRESS PAPER")
+        except Exception:
+            log.exception("could not send stress paper alert trade=%s",e["trade_id"])
+            continue
+        db.execute(
+            "INSERT OR IGNORE INTO stress_survivor_notifications "
+            "(trade_id,action,sent_ts) VALUES (?,?,?)",
+            (e["trade_id"],e["action"],time.time()))
+        db.commit()
+        delivered+=1
+    return delivered
+
+
 async def run_collectors(http,db,cfg=None):
     evidence.ensure(db)
 
@@ -105,7 +161,11 @@ async def run_collectors(http,db,cfg=None):
         exploratory=explore.paper_tick(db)
         if exploratory.get("entries") or exploratory.get("exits") or exploratory.get("queued"):
             log.info("ATTENTION EXPLORE PAPER: %s",exploratory)
+        stress=stress_survivor.paper_tick(db)
+        if any(stress.get(k) for k in ("watched","confirmed","entered","closed")):
+            log.info("STRESS SURVIVOR PAPER: %s",stress)
         await notify_experimental_trades(http,db,cfg)
+        await notify_stress_survivor(http,db,cfg)
 
     async def security():
         result=await chain.poll_safety(http,db)
