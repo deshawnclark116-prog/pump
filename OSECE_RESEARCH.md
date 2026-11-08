@@ -52,7 +52,7 @@ system first received a source. Network outages never become zero attention.
 
 For both:
 - Strict canonical token name match (or symbol only if at least six chars),
-  prior sources received **1–30 minutes before creation**, maximum 45-minute
+  prior sources received **15 seconds–30 minutes before creation**, maximum 45-minute
   wait for a viable Jupiter market.
 - Two separate Jupiter market observations at least 30s apart must show
   >=$20k liquidity, measured five-minute buy USD >=$1,200, buy USD >=1.2x
