@@ -1,0 +1,85 @@
+name: public streaming feed discovery probe
+on:
+  push:
+    branches: [account-free-source-probe-20261108]
+    paths:
+      - '.github/workflows/source-discovery-stream-probe.yml'
+  workflow_dispatch:
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install aiohttp
+      - name: Test public websockets and Wikimedia SSE without tokens or subscriptions to paid trading data
+        run: |
+          python - <<'PY'
+          import asyncio, json, time
+          import aiohttp
+          import socket
+
+          UA="MemeDataProbe/0.1 (https://github.com/deshawnclark116-prog/pump; free public feed check)"
+
+          async def websocket_probe(name,url,payload=None):
+            result={'source':name,'protocol':'websocket','connected':False,'messages':0}
+            try:
+              async with aiohttp.ClientSession(headers={'User-Agent':UA},timeout=aiohttp.ClientTimeout(total=15)) as s:
+                async with s.ws_connect(url,timeout=8,heartbeat=None,max_msg_size=500000) as ws:
+                  result['connected']=True
+                  if payload is not None: await ws.send_json(payload)
+                  for _ in range(3):
+                    try: msg=await asyncio.wait_for(ws.receive(),timeout=5)
+                    except (TimeoutError,asyncio.TimeoutError):break
+                    if msg.type==aiohttp.WSMsgType.TEXT:
+                      result['messages']+=1
+                      try:
+                        obj=json.loads(msg.data)
+                        result['last_kind']=str(obj.get('kind') if isinstance(obj,dict) else (obj[0] if isinstance(obj,list) and obj else 'other'))[:45]
+                        if isinstance(obj,dict):result['object_keys']=sorted(obj.keys())[:10]
+                      except:result['last_kind']='non_json'
+                    elif msg.type in (aiohttp.WSMsgType.CLOSE,aiohttp.WSMsgType.ERROR,aiohttp.WSMsgType.CLOSED):
+                      result['close_code']=ws.close_code
+                      break
+            except Exception as e:
+              result['error']=type(e).__name__+': '+str(e)[:100]
+            return result
+
+          async def wikimedia():
+            result={'source':'wikimedia_recentchange_sse','protocol':'SSE','connected':False,'events':0}
+            try:
+              async with aiohttp.ClientSession(headers={'User-Agent':UA,'Accept':'text/event-stream'},
+                              timeout=aiohttp.ClientTimeout(total=13,sock_read=8)) as s:
+                async with s.get('https://stream.wikimedia.org/v2/stream/recentchange') as resp:
+                  result['http']=resp.status
+                  result['connected']=resp.status==200
+                  chunks=[]
+                  async for part in resp.content.iter_chunked(4096):
+                    chunks.append(part)
+                    data=b''.join(chunks)
+                    if b'data:' in data:
+                      result['events']=data.count(b'data:')
+                      break
+                    if len(data)>300000:break
+            except Exception as e:
+              result['error']=type(e).__name__+': '+str(e)[:100]
+            return result
+
+          async def main():
+            requests=[
+              websocket_probe('nostr_damus','wss://relay.damus.io',
+                              ['REQ','feedcheck',{'kinds':[1],'since':int(time.time())-45,'limit':2}]),
+              websocket_probe('nostr_nos_lol','wss://nos.lol',
+                              ['REQ','feedcheck',{'kinds':[1],'since':int(time.time())-45,'limit':2}]),
+              websocket_probe('bluesky_jetstream_legacy','wss://jetstream2.us-east.bsky.network/subscribe?wantedCollections=app.bsky.feed.post'),
+              websocket_probe('pumpportal_new_token_no_key','wss://pumpportal.fun/api/data',
+                              {'method':'subscribeNewToken'}),
+              wikimedia()
+            ]
+            results=await asyncio.gather(*requests)
+            for item in results:print('STREAM_PROBE '+json.dumps(item,sort_keys=True))
+          asyncio.run(main())
+          PY
