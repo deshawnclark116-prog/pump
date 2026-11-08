@@ -1,0 +1,68 @@
+name: Raydium public signal data verification
+on:
+  push:
+    branches: [account-free-source-probe-20261108]
+    paths:
+      - '.github/workflows/raydium-data-probe.yml'
+  workflow_dispatch:
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify no-key Raydium pool and token metrics shape
+        run: |
+          python - <<'PY'
+          import concurrent.futures,json,time
+          from urllib.request import Request,urlopen
+          from urllib.error import HTTPError
+          BASE='https://api-v3.raydium.io'
+          FEEDS={
+            'raydium_info':'/main/info',
+            'raydium_pools_v2':'/pools/info/list-v2?poolType=all&poolSortField=volume24h&sortType=desc&pageSize=3&page=1',
+            'raydium_pools_v1':'/pools/info/list?poolType=all&poolSortField=liquidity&sortType=desc&pageSize=3&page=1',
+            'raydium_mint_SOL':'/mint/ids?mints=So11111111111111111111111111111111111111112',
+            'raydium_mint_memecoin':'/mint/ids?mints=iW4XP2BWd3iqf1LMZvpsKidb49wVAh3S8SfNUsDpump',
+          }
+          def probe(entry):
+            name,path=entry
+            result={'source':name}
+            try:
+              req=Request(BASE+path,headers={'User-Agent':'MemeDataProbe/0.1 (https://github.com/deshawnclark116-prog/pump)','Accept':'application/json'})
+              with urlopen(req,timeout=9) as res:
+                result['http']=res.status
+                raw=res.read(300000)
+              try:
+                js=json.loads(raw)
+                result['root_keys']=list(js.keys())[:12] if isinstance(js,dict) else []
+                result['success']=js.get('success') if isinstance(js,dict) else None
+                data=js.get('data') if isinstance(js,dict) else None
+                result['data_type']=type(data).__name__
+                if isinstance(data,list): samples=data[:3]
+                elif isinstance(data,dict):
+                  result['data_keys']=list(data.keys())[:15]
+                  samples=(data.get('data') or data.get('mintList') or [])[:3] if isinstance(data.get('data') or data.get('mintList'),list) else [data]
+                else:samples=[]
+                for item in samples:
+                  if isinstance(item,dict):
+                    result['sample_keys']=list(item.keys())[:25]
+                    ext=item.get('extensions')
+                    if isinstance(ext,dict):
+                      result['extension_keys']=list(ext.keys())[:20]
+                      stat=ext.get('stats5m')
+                      if isinstance(stat,dict):
+                        result['stats5m_keys']=list(stat.keys())[:30]
+                        result['buy_and_sell_volumes_present']=all(isinstance(stat.get(k),(int,float)) for k in ('buyVolume','sellVolume'))
+                    break
+              except Exception as ex:result['parse_error']=type(ex).__name__
+            except HTTPError as e:result.update(http=e.code,error='HTTPError')
+            except Exception as e:result['error']=type(e).__name__+': '+str(e)[:90]
+            return result
+          with concurrent.futures.ThreadPoolExecutor(max_workers=3) as pool:
+            for result in pool.map(probe,FEEDS.items()):
+              print('RAYDIUM_PROBE '+json.dumps(result,sort_keys=True))
+          PY
