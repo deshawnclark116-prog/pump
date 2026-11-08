@@ -78,12 +78,27 @@ def test_single_source_no_duplicate_authors_is_not_faked_collision():
     for i in range(5):
         core.record_event(c,source="bluesky",external_id=f"post{i}",
                           actor="same-promoter",text="#HawkTuah",observed_ts=1000+i)
-    assert launch(c)["status"]=="matched" # source observed, but unqualified
+    assert launch(c)["status"]=="unmatched" # one promoter is not an observed social trend
     assert c.execute("SELECT COUNT(*) FROM osece_signals").fetchone()[0]==0
     # One structured source can form the experimental single-source arm.
     core.record_event(c,source="google_trends",external_id="tr",actor="tr",
                       text="Hawk Tuah",observed_ts=1150,curated=True)
     assert launch(c,mint=MINT2,seen=1200)["signals"]==1
+
+
+def test_stream_term_count_is_capped_after_three_authors():
+    c=db()
+    for i in range(50):
+        core.record_event(c,source="bluesky",external_id=f"event{i}",
+                          actor=f"author{i}",text="#HawkTuah",
+                          observed_ts=1500+i)
+    assert c.execute(
+        "SELECT COUNT(*) FROM osece_events WHERE source='bluesky' AND term_key='hawktuah'"
+    ).fetchone()[0]==8
+    # The social threshold was reached; no fake sources were created.
+    src,_=core._sources_for(c,"hawktuah",1700)
+    assert src=={"bluesky":8}
+
 
 
 def test_future_culture_cannot_become_past_culture():
