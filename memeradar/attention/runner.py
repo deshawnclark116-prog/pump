@@ -6,7 +6,7 @@ import logging
 import time
 
 from . import db as evidence
-from . import attention, chain, trader, public_sources, explore
+from . import attention, chain, trader, public_sources, explore, stress_survivor
 from .. import alerts
 
 log=logging.getLogger(__name__)
@@ -105,6 +105,9 @@ async def run_collectors(http,db,cfg=None):
         exploratory=explore.paper_tick(db)
         if exploratory.get("entries") or exploratory.get("exits") or exploratory.get("queued"):
             log.info("ATTENTION EXPLORE PAPER: %s",exploratory)
+        stress=stress_survivor.paper_tick(db)
+        if any(stress.get(k) for k in ("watched","confirmed","entered","closed")):
+            log.info("STRESS SURVIVOR PAPER: %s",stress)
         await notify_experimental_trades(http,db,cfg)
 
     async def security():
