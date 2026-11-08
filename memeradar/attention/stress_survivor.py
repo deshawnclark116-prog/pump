@@ -73,6 +73,9 @@ CREATE TABLE IF NOT EXISTS stress_survivor_trades (
  exit_ts REAL,exit_price REAL,usd_out REAL,exit_reason TEXT);
 CREATE INDEX IF NOT EXISTS stress_survivor_open
  ON stress_survivor_trades(version,exit_ts,mint);
+CREATE TABLE IF NOT EXISTS stress_survivor_notifications (
+ trade_id INTEGER NOT NULL, action TEXT NOT NULL, sent_ts REAL NOT NULL,
+ PRIMARY KEY(trade_id,action));
 """
 
 
