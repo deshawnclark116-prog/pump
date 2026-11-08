@@ -39,7 +39,10 @@ jobs:
                       try:
                         obj=json.loads(msg.data)
                         result['last_kind']=str(obj.get('kind') if isinstance(obj,dict) else (obj[0] if isinstance(obj,list) and obj else 'other'))[:45]
-                        if isinstance(obj,dict):result['object_keys']=sorted(obj.keys())[:10]
+                        if isinstance(obj,dict):
+                          result['object_keys']=sorted(obj.keys())[:10]
+                          if name.startswith('pumpportal') and isinstance(obj.get('message'),str):
+                            result['server_notice']=obj['message'][:190]
                       except:result['last_kind']='non_json'
                     elif msg.type in (aiohttp.WSMsgType.CLOSE,aiohttp.WSMsgType.ERROR,aiohttp.WSMsgType.CLOSED):
                       result['close_code']=ws.close_code
@@ -71,9 +74,11 @@ jobs:
           async def main():
             requests=[
               websocket_probe('nostr_damus','wss://relay.damus.io',
-                              ['REQ','feedcheck',{'kinds':[1],'since':int(time.time())-45,'limit':2}]),
+                              ['REQ','feedcheck',{'kinds':[1],'since':int(time.time())-900,'limit':3}]),
+              websocket_probe('nostr_primal','wss://relay.primal.net',
+                              ['REQ','feedcheck',{'kinds':[1],'since':int(time.time())-900,'limit':3}]),
               websocket_probe('nostr_nos_lol','wss://nos.lol',
-                              ['REQ','feedcheck',{'kinds':[1],'since':int(time.time())-45,'limit':2}]),
+                              ['REQ','feedcheck',{'kinds':[1],'since':int(time.time())-900,'limit':3}]),
               websocket_probe('bluesky_jetstream_legacy','wss://jetstream2.us-east.bsky.network/subscribe?wantedCollections=app.bsky.feed.post'),
               websocket_probe('pumpportal_new_token_no_key','wss://pumpportal.fun/api/data',
                               {'method':'subscribeNewToken'}),
