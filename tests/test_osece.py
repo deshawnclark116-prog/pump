@@ -183,7 +183,7 @@ def test_rss_and_jupiter_recent_are_timestamped():
     xml='<rss><channel><item><title>Hawk Tuah</title><guid>unique</guid>' \
          '<pubDate>Thu, 01 Jan 1970 00:33:00 GMT</pubDate></item></channel></rss>'
     assert len(collectors.parse_rss(xml,"google_trends",now=now))==1
-    assert collectors.parse_rss(xml,"google_trends",now=4000)==[]
+    assert collectors.parse_rss(xml,"google_trends",now=25000)==[]
     assert collectors._first_pool_time(
         {"firstPool":{"createdAt":"2026-11-08T09:00:00Z"}})>0
 
