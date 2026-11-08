@@ -43,7 +43,7 @@ system first received a source. Network outages never become zero attention.
 1. **OSECE early, single-source baseline**: token name matches a phrase
    received before token creation from one independently qualifying source.
    Bluesky and Nostr each require at least THREE distinct authors within
-   30 minutes, to avoid one promoter creating the entire "trend". Structured
+   10 minutes, to avoid one promoter creating the entire "trend". Structured
    feeds qualify with one fresh event.
 2. **OSECE cross-source collision**: same contract-name phrase was received
    from at least TWO separate source families before creation. A syndicated
@@ -73,7 +73,11 @@ For both:
 The research registry includes all observed candidate terms, hours/number
 of unpaired token launches, matched launches, every frozen signal and rejection,
 Jupiter quotes, and every simulated paper fill/exit. Social authors and source
-post IDs are HASHED; raw post texts are not stored.
+post IDs are HASHED; raw post texts are not stored. For high-volume social
+streams, unconfirmed fragments stay in a bounded in-memory window; after
+three distinct authors, no more than eight independent receipts per phrase
+per ten-minute window enter SQLite. This suppresses generic chatter and
+limits cache size.
 
 ## Research and promotion doctrine
 
