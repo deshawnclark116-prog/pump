@@ -175,8 +175,10 @@ def record_event(db, *, source, external_id, text, actor=None,
     if source not in SOURCES or not external_id:
         return 0
     now = time.time() if observed_ts is None else observed_ts
+    max_source_age=(6*3600 if source=="google_trends" else
+                    3600 if curated else 900)
     if published_ts is not None and (published_ts > now+120 or
-                                     now-published_ts > (3600 if curated else 900)):
+                                     now-published_ts > max_source_age):
         return 0
     terms = extract_terms(text,curated=curated)
     if not terms:
