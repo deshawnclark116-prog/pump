@@ -201,7 +201,7 @@ def _sources_for(db, key, launch_ts):
     events = db.execute(
         "SELECT source,actor_key,observed_ts FROM osece_events "
         "WHERE term_key=? AND observed_ts<? AND observed_ts>=?",
-        (key,launch_ts-1,launch_ts-MAX_CULTURE_LEAD_SEC)).fetchall()
+        (key,launch_ts-15,launch_ts-MAX_CULTURE_LEAD_SEC)).fetchall()
     by_source=defaultdict(set)
     for r in events:
         by_source[r["source"]].add(r["actor_key"])
