@@ -24,7 +24,7 @@ from . import core
 log=logging.getLogger(__name__)
 BLUESKY = "wss://jetstream2.us-east.bsky.network/subscribe?wantedCollections=app.bsky.feed.post"
 WIKIMEDIA = "https://stream.wikimedia.org/v2/stream/recentchange"
-NOSTR = "wss://relay.primal.net"
+NOSTR_RELAYS = ("wss://relay.primal.net","wss://nos.lol")
 GOOGLE_TRENDS = "https://trends.google.com/trending/rss?geo=US"
 GDELT = "https://data.gdeltproject.org/gdeltv3/gal/feed.rss"
 HN_NEW = "https://hacker-news.firebaseio.com/v0/newstories.json"
@@ -195,12 +195,15 @@ def read_nostr(frame,now=None):
 
 async def listen_nostr(http,db):
     backoff=4
+    relay_index=0
     while True:
+        relay=NOSTR_RELAYS[relay_index % len(NOSTR_RELAYS)]
+        relay_index+=1
         try:
             session=await http.session()
-            async with session.ws_connect(NOSTR,heartbeat=35,timeout=12,
+            async with session.ws_connect(relay,heartbeat=35,timeout=12,
                                           max_msg_size=524288) as ws:
-                core.source_state(db,"nostr","connected","relay.primal.net kind-1")
+                core.source_state(db,"nostr","connected",f"{relay} kind-1")
                 backoff=4
                 await ws.send_json(["REQ","osece",{"kinds":[1],
                       "since":int(time.time())-5,"limit":100}])
