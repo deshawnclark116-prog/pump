@@ -16,6 +16,10 @@ HOST_SPACING = {
     "api.geckoterminal.com": 2.5,    # ~30 req/min
     "api.rugcheck.xyz": 1.0,
     "api.gopluslabs.io": 2.0,
+    "api.jup.ag": 2.25,            # documented no-key Tokens v2 limit: 0.5 RPS
+    "trends.google.com": 3.0,      # public RSS, keep collection polite
+    "data.gdeltproject.org": 3.0,  # public one-minute news RSS
+
     "www.reddit.com": 3.0,
 }
 USER_AGENT = "memeradar/0.1 (+https://github.com/deshawnclark116-prog/pump)"

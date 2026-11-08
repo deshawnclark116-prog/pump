@@ -1,0 +1,46 @@
+name: osece free-source smoke test
+on:
+  push:
+    branches: [osece-forward-paper-v1-20261108]
+    paths:
+      - '.github/workflows/osece-smoke.yml'
+      - 'memeradar/osece/**'
+  workflow_dispatch:
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+      - name: Exercise actual public streams in collection-only mode
+        env:
+          OSECE_PAPER_ENABLED: "0"
+        run: |
+          python - <<'PY'
+          import asyncio,json,sqlite3,time
+          from memeradar.http import Http
+          from memeradar.attention.db import connect
+          from memeradar.osece import core,runner
+          async def test():
+              db=connect(":memory:")
+              core.ensure(db)
+              http=Http()
+              try:
+                  try:
+                      await asyncio.wait_for(runner.run(http,db),timeout=40)
+                  except asyncio.TimeoutError:
+                      pass
+                  out=core.report(db)
+                  print("OSECE_SMOKE "+json.dumps({
+                      "counts":out["counts"],
+                      "source_status":out["source_status"],
+                      "paper_books":out["books"]
+                  },sort_keys=True))
+              finally:
+                  await http.close()
+          asyncio.run(test())
+          PY

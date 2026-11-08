@@ -70,6 +70,11 @@ class Radar:
         self.cfg = cfg
         self.http = Http()
         self.store = Store(cfg.db_path)
+        self.osece_enabled = os.environ.get("OSECE_ENABLED") == "1"
+        if self.osece_enabled:
+            from .osece import core as osece_core
+            osece_core.ensure(self.store.db)
+            osece_core.started_at(self.store.db, time.time())
         self.mentions = scoring.MentionIndex()
         self.tokens: dict[tuple[str, str], TokenState] = {}
         self.rejected: OrderedDict[tuple[str, str], float] = OrderedDict()
@@ -129,6 +134,15 @@ class Radar:
             asyncio.ensure_future(self.pump.unsubscribe_trades([t.address]))
 
     async def _on_new_pump_token(self, data: dict) -> None:
+        if self.osece_enabled and data.get("mint"):
+            from .osece import core as osece_core
+            # Creation RECEIPT is the earliest actionable time. This reuses
+            # the existing websocket; no second PumpPortal subscriber.
+            seen = time.time()
+            osece_core.record_launch(
+                self.store.db,mint=data["mint"],name=data.get("name") or "",
+                symbol=data.get("symbol") or "",created_ts=seen,
+                observed_ts=seen,source="pumpportal")
         if self.grad and data.get("mint"):
             self.grad.on_new_token(data["mint"], data.get("symbol", ""))
         t = self.add_candidate("solana", data["mint"], "pumpportal", data.get("symbol", ""), data.get("name", ""))
@@ -542,6 +556,9 @@ class Radar:
         if os.environ.get("ATTENTION_ENABLED") == "1":
             from .attention.runner import run_collectors
             tasks.append(run_collectors(self.http, self.store.db, self.cfg))
+        if self.osece_enabled:
+            from .osece.runner import run as run_osece
+            tasks.append(run_osece(self.http,self.store.db,self.cfg))
         tasks.append(self._every(3600, self.housekeeping))
         if not duration:  # long-running server: tell the phone it's alive
             watching = len(self.positions)
