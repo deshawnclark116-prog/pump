@@ -60,12 +60,14 @@ jobs:
           ATTENTION_REDDIT_APPROVED: ${{ vars.ATTENTION_REDDIT_APPROVED }}
           ATTENTION_PAPER_ENABLED: "0"  # validated waiting-money model stays gated
           ATTENTION_EXPERIMENTAL_PAPER: "1"  # untrained, $10 fake trades, separate books
+          STRESS_SURVIVOR_PAPER_ENABLED: "1"  # new unvalidated $10 paper book, no swap wallet
       - name: alerts so far
         if: always() && hashFiles('memeradar.db') != ''
         run: |
           python -m memeradar report || true
           python -m memeradar paper || true
           python -m memeradar.attention explore-report || true
+          python -m memeradar.attention stress-report || true
       - uses: actions/cache/save@v4
         if: always() && hashFiles('memeradar.db') != ''
         with:
@@ -91,6 +93,7 @@ jobs:
           python -m memeradar.research --db research-output/memeradar.db --audit --output research-output/audit.json
           python -m memeradar.attention --db research-output/memeradar.db status > research-output/attention-status.json
           python -m memeradar.attention --db research-output/memeradar.db explore-report > research-output/attention-explore-trades.json
+          python -m memeradar.attention --db research-output/memeradar.db stress-report > research-output/stress-survivor-paper.json
           python -m memeradar.research --db research-output/memeradar.db --since "$(date -u -d '24 hours ago' +%Y-%m-%dT%H:%M:%SZ)" --until "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --output research-output/replay.json
       - uses: actions/upload-artifact@v4
         if: always() && hashFiles('research-output/audit.json') != ''
