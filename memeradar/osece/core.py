@@ -214,20 +214,26 @@ def record_event(db, *, source, external_id, text, actor=None,
         author_hash=_hash(actor or external_id)
         for term in terms:
             key=(source,term)
-            rows=[r for r in state.get(key,[]) if now-r[0]<=_SOCIAL_WINDOW
-                  and now>=r[0]]
+            slot=state.get(key) or {"rows":[],"saved":set()}
+            rows=[r for r in slot["rows"] if 0<=now-r[0]<=_SOCIAL_WINDOW]
+            if not rows:
+                slot={"rows":[],"saved":set()}
+                rows=[]
             if not any(r[1]==author_hash for r in rows):
                 rows.append((now,author_hash,external_id,actor,published_ts))
-            state[key]=rows[-_SOCIAL_CAP:]
-            # The third distinct author is the first moment at which we
-            # assert a social attention event. Original receipt timestamps
-            # are retained, but no launch observed before this flush can be
-            # retroactively promoted into a signal.
-            if len(rows)>=3:
-                for ts,ah,eid,who,posted in rows[:_SOCIAL_CAP]:
+            slot["rows"]=rows[-_SOCIAL_CAP:]
+            state[key]=slot
+            # The third distinct author is the first qualifying moment.
+            # Store up to eight independent receipts per phrase per window,
+            # not thousands of repeated popular social messages.
+            if len(rows)>=3 and len(slot["saved"])<_SOCIAL_CAP:
+                for ts,ah,eid,who,posted in rows:
+                    if ah in slot["saved"] or len(slot["saved"])>=_SOCIAL_CAP:
+                        continue
                     inserted+=_insert_event(
                         db,source=source,external_id=eid,actor=who,
                         term=term,now=ts,published_ts=posted)
+                    slot["saved"].add(ah)
     if inserted:
         db.commit()
     return inserted
