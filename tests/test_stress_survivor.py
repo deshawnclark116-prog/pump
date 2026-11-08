@@ -162,3 +162,29 @@ def test_pool_switch_does_not_manufacture_resilience_or_market_crash(monkeypatch
     observed=stress.paper_tick(c,now=1050)
     assert observed["cohort"]==6
     assert observed["watched"]==0
+
+
+def test_new_paper_trades_notify_once_per_side(monkeypatch):
+    import asyncio
+    from memeradar.attention import runner
+    monkeypatch.setenv("STRESS_SURVIVOR_PAPER_ENABLED","1")
+    messages=[]
+    async def fake_send(http,cfg,message,**kw):
+        messages.append(message)
+    monkeypatch.setattr(runner.alerts,"send_text",fake_send)
+    class Cfg:
+        ntfy_topic="already-configured"
+        discord_webhook_url=""
+        telegram_bot_token=""
+        telegram_chat_id=""
+    c=db();stress.paper_tick(c,now=1000);set_up_selloff(c);safety(c)
+    stress.paper_tick(c,now=1050);stress.paper_tick(c,now=1120)
+    quote(c,MINT,1150,1.0);stress.paper_tick(c,now=1150)
+    assert asyncio.run(runner.notify_stress_survivor(None,c,Cfg()))==1
+    assert "PAPER BUY" in messages[0]
+    assert asyncio.run(runner.notify_stress_survivor(None,c,Cfg()))==0
+    quote(c,MINT,1180,1.19);stress.paper_tick(c,now=1180)
+    assert asyncio.run(runner.notify_stress_survivor(None,c,Cfg()))==1
+    assert "PAPER SELL" in messages[1] and "Net P&L" in messages[1]
+    assert asyncio.run(runner.notify_stress_survivor(None,c,Cfg()))==0
+    assert c.execute("SELECT COUNT(*) FROM stress_survivor_notifications").fetchone()[0]==2
