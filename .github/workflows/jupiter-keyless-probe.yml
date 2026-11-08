@@ -1,0 +1,57 @@
+name: Jupiter keyless data shape verification
+on:
+  push:
+    branches: [account-free-source-probe-20261108]
+    paths:
+      - '.github/workflows/jupiter-keyless-probe.yml'
+  workflow_dispatch:
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify keyless organic and buy/sell USD fields
+        run: |
+          python - <<'PY'
+          import json,time
+          from urllib.request import Request,urlopen
+          from urllib.error import HTTPError
+          urls={
+            'jupiter_meme_token':'https://api.jup.ag/tokens/v2/search?query=iW4XP2BWd3iqf1LMZvpsKidb49wVAh3S8SfNUsDpump',
+            'jupiter_SOL':'https://api.jup.ag/tokens/v2/search?query=So11111111111111111111111111111111111111112',
+            'jupiter_recent':'https://api.jup.ag/tokens/v2/recent',
+            'jupiter_toptrending_5m':'https://api.jup.ag/tokens/v2/toptrending/5m?limit=5',
+          }
+          for name,url in urls.items():
+            output={'source':name}
+            try:
+              req=Request(url,headers={'User-Agent':'MemeDataProbe/0.1 (https://github.com/deshawnclark116-prog/pump)','Accept':'application/json'})
+              with urlopen(req,timeout=12) as resp:
+                output['http']=resp.status; raw=resp.read(1024000)
+              data=json.loads(raw)
+              output['type']=type(data).__name__
+              if isinstance(data,list):
+                output['records']=len(data)
+                if data and isinstance(data[0],dict):
+                  x=data[0];output['fields']=sorted(x.keys())[:50]
+                  output['has_mint']=bool(x.get('id'))
+                  output['has_first_pool']=isinstance(x.get('firstPool'),dict)
+                  output['organic_score_present']=isinstance(x.get('organicScore'),(float,int))
+                  stat=x.get('stats5m')
+                  if isinstance(stat,dict):
+                    output['stats5m_fields']=sorted(stat.keys())[:35]
+                    for k in ['buyVolume','sellVolume','buyOrganicVolume','sellOrganicVolume','numTraders']:
+                      output[k+'_present']=isinstance(stat.get(k),(int,float))
+                  audit=x.get('audit')
+                  if isinstance(audit,dict):output['audit_fields']=sorted(audit.keys())[:25]
+              elif isinstance(data,dict):
+                output['fields']=list(data.keys())[:12]
+            except HTTPError as e:output.update(http=e.code,error='HTTPError')
+            except Exception as e:output['error']=type(e).__name__+': '+str(e)[:120]
+            print('JUPITER_PROBE '+json.dumps(output,sort_keys=True))
+            time.sleep(3.0) # documented keyless 0.5 RPS; avoid throttling
+          PY
