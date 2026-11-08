@@ -67,7 +67,8 @@ def test_peer_selloff_survivor_not_same_quote_fill(monkeypatch):
     assert stress.paper_tick(c,now=1150)["entered"]==1
     assert len(get_trades(c))==1
     assert get_trades(c)[0]["entry_ts"]==1150
-    quote(c,MINT,1180,1.18)
+    # Entry was 1.01: a 1.18 exit is <12% NET after both fees/slippage.
+    quote(c,MINT,1180,1.19)
     assert stress.paper_tick(c,now=1180)["closed"]==1
     t=get_trades(c)[0]
     assert t["exit_reason"]=="TAKE_NET_12"
