@@ -39,11 +39,11 @@ STOP_NET = -12
 HOLD_SEC = 20 * 60
 COOLDOWN_SEC = 2 * 3600
 
-STOP = frozenset((
+STOP = frozenset(" ".join((
     "solana bitcoin ethereum crypto token tokens pump fun moon trading markets",
     "good morning thank you breaking news official update live today tonight",
     "google wikipedia bluesky twitter twitch reddit github meme memes"
-).split())
+)).split())
 BLOCK = frozenset(("goodmorning","thankyou","breakingnews","officialupdate",
                    "bitcoin","ethereum","solana","crypto","cryptocurrency",
                    "twitter","bluesky","newpost","clickhere","watchlive"))
