@@ -113,12 +113,14 @@ def _cohort(db,now):
             continue
         target=row["observed_ts"]-300
         prev=db.execute(
-            "SELECT price_usd,liquidity_usd,observed_ts FROM attention_chain "
+            "SELECT price_usd,liquidity_usd,observed_ts,pair FROM attention_chain "
             "WHERE mint=? AND observed_ts>? AND observed_ts<=? "
             "ORDER BY observed_ts DESC LIMIT 1",
             (row["mint"],target-100,target)).fetchone()
         if not prev or prev["price_usd"]<=0 or prev["liquidity_usd"]<=0:
             continue
+        if not row["pair"] or row["pair"]!=prev["pair"]:
+            continue  # pool migration creates artificial price jumps
         price_ret=row["price_usd"]/prev["price_usd"]-1
         if not math.isfinite(price_ret):
             continue
