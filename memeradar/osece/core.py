@@ -78,7 +78,7 @@ CREATE TABLE IF NOT EXISTS osece_launches (
  evidence_count INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS osece_signals (
  id INTEGER PRIMARY KEY AUTOINCREMENT,
- variant TEXT NOT NULL, mint TEXT NOT NULL UNIQUE ON CONFLICT IGNORE,
+ variant TEXT NOT NULL, mint TEXT NOT NULL,
  launch_ts REAL NOT NULL, term_key TEXT NOT NULL,
  source_count INTEGER NOT NULL, state TEXT NOT NULL,
  reason TEXT, watch_ts REAL, watch_price REAL,
