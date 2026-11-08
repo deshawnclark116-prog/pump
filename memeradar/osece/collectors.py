@@ -236,7 +236,8 @@ def parse_rss(xml,source,now=None,limit=60):
         title=item.findtext("title")
         guid=item.findtext("guid") or item.findtext("link")
         published=_rss_time(item.findtext("pubDate"))
-        if not title or not guid or published is None or not 0<=now-published<=900:
+        max_age=6*3600 if source=="google_trends" else 900
+        if not title or not guid or published is None or not 0<=now-published<=max_age:
             continue
         found.append({"source":source,"external_id":guid,
                       "actor":guid,"text":title,"observed_ts":now,
@@ -253,7 +254,7 @@ async def poll_rss(http,db):
                 core.source_state(db,source,"error","RSS unavailable")
                 outcome[source]=None
                 continue
-            events=parse_rss(raw,source,limit=40 if source=="google_trends" else 100)
+            events=parse_rss(raw,source,limit=30 if source=="google_trends" else 40)
             count=0
             for e in events:
                 count+=core.record_event(db,**e)
@@ -273,7 +274,7 @@ async def poll_hackernews(http,db):
         core.source_state(db,"hackernews","error","newstories unavailable")
         return 0
     now=time.time();count=0;looked=0
-    for iid in items[:12]:
+    for iid in items[:8]:
         data=await http.get(f"{HN_ITEM}{iid}.json")
         if not isinstance(data,dict) or not data.get("title"):
             continue
