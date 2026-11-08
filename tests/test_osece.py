@@ -207,7 +207,7 @@ def test_paper_alert_once_per_buy_and_sell(monkeypatch):
     quote(c,1630,1.4);core.tick(c,now=1630)
     assert asyncio.run(runner.notify(None,c,Cfg()))==2
     assert len(sent)==4
-    assert all("NO real" in x or "no real" in x for x in sent)
+    assert all("no real" in x.lower() for x in sent)
 
 
 def test_zero_cultural_matches_no_fake_trades(monkeypatch):
