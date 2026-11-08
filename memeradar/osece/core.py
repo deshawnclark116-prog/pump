@@ -48,7 +48,7 @@ BLOCK = frozenset(("goodmorning","thankyou","breakingnews","officialupdate",
                    "bitcoin","ethereum","solana","crypto","cryptocurrency",
                    "twitter","bluesky","newpost","clickhere","watchlive"))
 HASHTAG = re.compile(r"(?<!\w)#([A-Za-z][A-Za-z0-9_]{3,35})")
-TITLE = re.compile(r"(?<![A-Za-z])(?:[A-Z][a-z]{2,}|[A-Z]{3,12})(?:\s+(?:[A-Z][a-z]{2,}|[A-Z]{3,12})){0,2}(?![A-Za-z])")
+TITLE = re.compile(r"(?<![A-Za-z])(?:[A-Z][a-z]{2,}|[A-Z]{4,12})\s+(?:[A-Z][a-z]{2,}|[A-Z]{4,12})(?:\s+(?:[A-Z][a-z]{2,}|[A-Z]{4,12}))?(?![A-Za-z])")
 WORD = re.compile(r"[A-Za-z0-9]+")
 SOURCES = ("bluesky","wikimedia","google_trends","gdelt","hackernews","nostr")
 SCHEMA = """
@@ -143,11 +143,15 @@ def extract_terms(text, *, curated=False):
         words = [w for w in WORD.findall(cleaned) if w.lower() not in STOP][:6]
         if 1 <= len(words) <= 4:
             candidates.add(" ".join(words))
-        for n in (2,3):
-            for i in range(min(4,len(words)-n+1)):
-                candidates.add(" ".join(words[i:i+n]))
-    # Stable bound per record; do not persist arbitrary PII/body text.
-    return sorted({normalize(x) for x in candidates if valid_term(x)})[:12]
+        # At most two adjacent phrase fragments, rather than every bigram
+        # from every news title; syndicated headlines otherwise dominate.
+        if len(words)>=2:
+            candidates.add(" ".join(words[:2]))
+        if len(words)>=3:
+            candidates.add(" ".join(words[:3]))
+    # No generic single TitleCase words from social posts; exact names,
+    # multiword entities and hashtags only. Bound stored terms per item.
+    return sorted({normalize(x) for x in candidates if valid_term(x)})[:4]
 
 
 def started_at(db, now):
