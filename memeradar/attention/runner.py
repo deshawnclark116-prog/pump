@@ -115,16 +115,16 @@ async def notify_stress_survivor(http,db,cfg):
             symbol=r[0] if r and r[0] else None
         except Exception:
             pass
-        label=f"\\${symbol}" if symbol else mint[:12]+"..."
+        label="$"+symbol if symbol else mint[:12]+"..."
         if e["action"]=="BUY":
-            message=(f"🛡️ STRESS SURVIVOR PAPER BUY | {label}\\n"
-                     f"$10 fake at \${e['price']:.10g}; peer selloff confirmed\\n"
-                     f"Costs simulated, delayed quote, NO real swap\\n{mint}")
+            message=(f"🛡️ STRESS SURVIVOR PAPER BUY | {label}\n"
+                     f"USD 10 fake at {e['price']:.10g}; peer selloff confirmed\n"
+                     f"Costs simulated, delayed quote, NO real swap\n{mint}")
         else:
             pnl=e["usd_out"]-e["usd_in"]
-            message=(f"🛡️ STRESS SURVIVOR PAPER SELL | {label}\\n"
-                     f"Net P&L ${pnl:+.2f} | {e['reason']}\\n"
-                     f"Exit \${e['price']:.10g}; NO real swap\\n{mint}")
+            message=(f"🛡️ STRESS SURVIVOR PAPER SELL | {label}\n"
+                     f"Net P&L USD {pnl:+.2f} | {e['reason']}\n"
+                     f"Exit price {e['price']:.10g}; NO real swap\n{mint}")
         try:
             await alerts.send_text(
                 http,cfg,message,symbol=symbol or "?",
