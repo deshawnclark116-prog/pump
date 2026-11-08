@@ -148,3 +148,17 @@ def test_midnight_and_runner_restart_do_not_backfill(monkeypatch):
     assert c.execute("SELECT COUNT(*) FROM stress_survivor_signals").fetchone()[0]==0
     assert stress.paper_tick(c,now=1301)["watched"]==0
     assert get_trades(c)==[]
+
+
+def test_pool_switch_does_not_manufacture_resilience_or_market_crash(monkeypatch):
+    monkeypatch.setenv("STRESS_SURVIVOR_PAPER_ENABLED","1")
+    c=db();stress.paper_tick(c,now=1000);set_up_selloff(c);safety(c)
+    # If nine peers migrated pools, their mismatched "returns" are not real
+    # five-minute returns. Exclude those from the cohort.
+    for mint in PEERS[:9]:
+        c.execute("UPDATE attention_chain SET pair='new_pool' "
+                  "WHERE mint=? AND observed_ts=1050",(mint,))
+    c.commit()
+    observed=stress.paper_tick(c,now=1050)
+    assert observed["cohort"]==6
+    assert observed["watched"]==0
