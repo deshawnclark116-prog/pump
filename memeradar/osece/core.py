@@ -51,6 +51,12 @@ HASHTAG = re.compile(r"(?<!\w)#([A-Za-z][A-Za-z0-9_]{3,35})")
 TITLE = re.compile(r"(?<![A-Za-z])(?:[A-Z][a-z]{2,}|[A-Z]{4,12})\s+(?:[A-Z][a-z]{2,}|[A-Z]{4,12})(?:\s+(?:[A-Z][a-z]{2,}|[A-Z]{4,12}))?(?![A-Za-z])")
 WORD = re.compile(r"[A-Za-z0-9]+")
 SOURCES = ("bluesky","wikimedia","google_trends","gdelt","hackernews","nostr")
+# Stream firehoses are high-volume. Keep isolated in-memory candidate author
+# windows until 3 distinct people mention the SAME phrase within 10 minutes.
+# Never mark a single post or bot repetition as a pre-token trend.
+_SOCIAL_CACHE = {}
+_SOCIAL_CAP = 8
+_SOCIAL_WINDOW = 600
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS osece_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS osece_sources (
@@ -170,6 +176,15 @@ def source_state(db, source, state, detail="", now=None):
     db.commit()
 
 
+def _insert_event(db, *, source, external_id, actor, term, now, published_ts):
+    return db.execute(
+        "INSERT OR IGNORE INTO osece_events "
+        "(source,source_key,actor_key,term,term_key,observed_ts,published_ts)"
+        " VALUES (?,?,?,?,?,?,?)",
+        (source,_hash(external_id),_hash(actor or external_id),term,term,
+         now,published_ts)).rowcount
+
+
 def record_event(db, *, source, external_id, text, actor=None,
                  observed_ts=None, published_ts=None, curated=False):
     if source not in SOURCES or not external_id:
@@ -183,19 +198,39 @@ def record_event(db, *, source, external_id, text, actor=None,
     terms = extract_terms(text,curated=curated)
     if not terms:
         return 0
-    inserted = 0
-    for term in terms:
-        cursor = db.execute(
-            "INSERT OR IGNORE INTO osece_events "
-            "(source,source_key,actor_key,term,term_key,observed_ts,published_ts)"
-            " VALUES (?,?,?,?,?,?,?)",
-            (source,_hash(external_id),_hash(actor or external_id),term,term,
-             now,published_ts))
-        inserted += cursor.rowcount
+    inserted=0
+    if source not in ("bluesky","nostr"):
+        for term in terms:
+            inserted+=_insert_event(db,source=source,external_id=external_id,
+                                    actor=actor,term=term,now=now,
+                                    published_ts=published_ts)
+    else:
+        state = _SOCIAL_CACHE.setdefault(id(db),(db,{}))[1]
+        # Evict old candidates regularly. This is not a persistent social
+        # archive; only independently corroborated phrases reach SQLite.
+        if len(state)>12000:
+            for key in list(state)[:len(state)-9000]:
+                del state[key]
+        author_hash=_hash(actor or external_id)
+        for term in terms:
+            key=(source,term)
+            rows=[r for r in state.get(key,[]) if now-r[0]<=_SOCIAL_WINDOW
+                  and now>=r[0]]
+            if not any(r[1]==author_hash for r in rows):
+                rows.append((now,author_hash,external_id,actor,published_ts))
+            state[key]=rows[-_SOCIAL_CAP:]
+            # The third distinct author is the first moment at which we
+            # assert a social attention event. Original receipt timestamps
+            # are retained, but no launch observed before this flush can be
+            # retroactively promoted into a signal.
+            if len(rows)>=3:
+                for ts,ah,eid,who,posted in rows[:_SOCIAL_CAP]:
+                    inserted+=_insert_event(
+                        db,source=source,external_id=eid,actor=who,
+                        term=term,now=ts,published_ts=posted)
     if inserted:
         db.commit()
     return inserted
-
 
 def _sources_for(db, key, launch_ts):
     events = db.execute(
