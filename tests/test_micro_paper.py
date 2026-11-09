@@ -125,7 +125,8 @@ def test_accounts_never_borrow_cash_or_top_up(monkeypatch):
     m.mark_ready(d,model=m.SOCIAL,mint=MINT,source_signal_ts=1010,
                  ready_ts=1100,ready_price=1)
     social_quote(d,1130)
-    assert m.tick(d,1130)["bought"]==0
+    assert m.tick(d,1130)["bought"]==1  # independent $1 account still has free cash
+    assert m.open_count(d,m.SOCIAL,5)==7  # no extra $5 buy on an overcommitted legacy scenario
 
 
 def test_no_backdated_micro_orders(monkeypatch):
