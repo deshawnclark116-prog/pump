@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import time
 
 from .. import alerts
@@ -81,6 +82,11 @@ async def run(http,db,cfg=None):
         if result["tracked"]:
             log.info("OSECE JUPITER %s tracked %s quoted",
                      result["tracked"],result["quoted"])
+        if os.environ.get("MICRO_PAPER_ENABLED")=="1":
+            from .. import micro_paper
+            changes=micro_paper.tick(db)
+            if changes["bought"] or changes["sold"]:
+                log.info("OSECE MICRO PAPER: %s",changes)
         await notify(http,db,cfg)
 
     async def prune():
