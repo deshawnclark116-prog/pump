@@ -364,7 +364,18 @@ def record_jupiter_quote(db, token, now=None):
 
 def tracked_mints(db, now=None, limit=80):
     now=time.time() if now is None else now
-    return [r[0] for r in db.execute(
+    # Reserve quote slots for new micro accounts until their actual exits.
+    # These cannot be dropped just because an OSECE source signal moved to
+    # micro_ready and left the old v1 watch queue.
+    priority=[]
+    if db.execute("SELECT 1 FROM sqlite_master WHERE type='table' "
+                  "AND name='micro_intents'").fetchone():
+        priority=[r[0] for r in db.execute(
+            "SELECT mint,MAX(CASE WHEN status='open' THEN 2 ELSE 1 END) rank "
+            "FROM micro_intents WHERE model LIKE 'osece_%' "
+            "AND status IN ('open','queued') GROUP BY mint "
+            "ORDER BY rank DESC,MAX(ready_ts) DESC LIMIT ?",(limit,))]
+    source=[r[0] for r in db.execute(
         "SELECT mint FROM ("
         "SELECT mint,MAX(launch_ts) priority FROM osece_signals "
         "WHERE state IN ('watch','confirm','queued') AND launch_ts>=? GROUP BY mint "
@@ -373,6 +384,7 @@ def tracked_mints(db, now=None, limit=80):
         "WHERE exit_ts IS NULL GROUP BY mint "
         ") GROUP BY mint ORDER BY MAX(priority) DESC LIMIT ?",
         (now-SIGNAL_LIFETIME_SEC,limit))]
+    return list(dict.fromkeys(priority+source))[:limit]
 
 
 def _last_quote(db,mint,now):
