@@ -326,3 +326,18 @@ def report(db,now=None,limit=40):
                     "Estimated equity is null whenever an open price is stale",
                     "Historical $250 ledgers are preserved separately"]
     }
+
+
+def main():
+    import argparse
+    p=argparse.ArgumentParser(description="Independent $25 micro paper trading accounts")
+    p.add_argument("--db",default="memeradar.db")
+    p.add_argument("command",nargs="?",default="report",choices=("report",))
+    args=p.parse_args()
+    db=sqlite3.connect(args.db)
+    db.row_factory=sqlite3.Row
+    print(json.dumps(report(db),indent=2,allow_nan=False))
+
+
+if __name__=="__main__":
+    main()
