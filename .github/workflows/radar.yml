@@ -117,6 +117,7 @@ jobs:
           python -m memeradar.research --db research-output/memeradar.db --audit --output research-output/audit.json
           python -m memeradar.attention --db research-output/memeradar.db status > research-output/attention-status.json
           python -m memeradar.attention --db research-output/memeradar.db explore-report > research-output/attention-explore-trades.json
+          python -m memeradar.attention.loss_audit --db research-output/memeradar.db --output research-output/social-loss-audit.json
           python -m memeradar.attention --db research-output/memeradar.db stress-report > research-output/stress-survivor-paper.json
           python -m memeradar.osece --db research-output/memeradar.db report > research-output/osece-paper-report.json
           python -m memeradar.research --db research-output/memeradar.db --since "$(date -u -d '24 hours ago' +%Y-%m-%dT%H:%M:%SZ)" --until "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --output research-output/replay.json
