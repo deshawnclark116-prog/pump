@@ -40,6 +40,13 @@ jobs:
           path: memeradar.db
           key: radar-db-${{ github.run_id }}
           restore-keys: radar-db-
+      - name: Recover missing archived paper trades
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # The previous cache failed to save due to an expensive hashFiles
+          # expression. Reconcile immutable research artifacts before trading.
+          python -m memeradar.attention.archive_sync --db memeradar.db --repo "$GITHUB_REPOSITORY" --latest 2
       - name: radar
         run: python -m memeradar run --duration 20700
         env:
@@ -48,7 +55,7 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           # Retire all entry strategies except Social Attention; retain evidence and legacy exits.
-          SOCIAL_ATTENTION_ONLY: "1"  # sole model permitted to create NEW fake buys
+          SOCIAL_ATTENTION_ONLY: "1"  # retires main radar/legacy books; OSECE is separate
           ATTENTION_ENABLED: "1"
           ATTENTION_TELEGRAM_API_ID: ${{ secrets.ATTENTION_TELEGRAM_API_ID }}
           ATTENTION_TELEGRAM_API_HASH: ${{ secrets.ATTENTION_TELEGRAM_API_HASH }}
@@ -60,16 +67,25 @@ jobs:
           ATTENTION_REDDIT_CLIENT_SECRET: ${{ secrets.ATTENTION_REDDIT_CLIENT_SECRET }}
           ATTENTION_REDDIT_APPROVED: ${{ vars.ATTENTION_REDDIT_APPROVED }}
           ATTENTION_PAPER_ENABLED: "0"  # validated waiting-money model stays gated
-          ATTENTION_EXPERIMENTAL_PAPER: "1"  # ONLY existing Social Attention model is active
+          ATTENTION_EXPERIMENTAL_PAPER: "1"  # Social Attention remains independently active
           ATTENTION_EXPERIMENTAL_SOCIAL_ONLY: "1"  # no new Gecko signals/fills, close old positions
           STRESS_SURVIVOR_PAPER_ENABLED: "0"  # no new paper entries
           STRESS_SURVIVOR_EXIT_ONLY: "1"  # monitor legacy open fake positions until priced exit
           OSECE_ENABLED: "1"  # public cultural data and existing PumpPortal launches
-          OSECE_PAPER_ENABLED: "0"  # research collection only, no new trades
-          OSECE_EXIT_ONLY: "1"  # protect preexisting fake positions; don't mint false exits
+          OSECE_PAPER_ENABLED: "1"  # frozen original 2 arms + new early-liquidity paper arm
+          OSECE_EXIT_ONLY: "0"  # new OSECE paper buys explicitly reauthorized
 
+      - name: detect saved database
+        id: saved_db
+        if: always()
+        run: |
+          if [ -f memeradar.db ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          fi
       - name: alerts so far
-        if: always() && hashFiles('memeradar.db') != ''
+        if: always() && steps.saved_db.outputs.present == 'true'
         run: |
           python -m memeradar report || true
           python -m memeradar paper || true
@@ -77,12 +93,12 @@ jobs:
           python -m memeradar.attention stress-report || true
           python -m memeradar.osece report || true
       - uses: actions/cache/save@v4
-        if: always() && hashFiles('memeradar.db') != ''
+        if: always() && steps.saved_db.outputs.present == 'true'
         with:
           path: memeradar.db
           key: radar-db-${{ github.run_id }}
       - name: preserve research evidence
-        if: always() && hashFiles('memeradar.db') != ''
+        if: always() && steps.saved_db.outputs.present == 'true'
         run: |
           mkdir -p research-output
           python - <<'PY'
