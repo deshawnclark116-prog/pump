@@ -210,10 +210,11 @@ def tick(db,now=None):
                  p["model"],p["stake"],p["mint"],value-p["stake"],pct,reason)
     for p in db.execute("SELECT * FROM micro_intents WHERE status='queued' "
                         "ORDER BY ready_ts,id").fetchall():
-        if p["ready_ts"]>now or now-p["ready_ts"]>MAX_ENTRY_WAIT:
-            reason="missing_followup_quote"
-            db.execute("UPDATE micro_intents SET status='expired',reason=? WHERE id=?",
-                       (reason,p["id"]))
+        if p["ready_ts"]>now:
+            continue  # future causal receipt cannot expire before becoming actionable
+        if now-p["ready_ts"]>MAX_ENTRY_WAIT:
+            db.execute("UPDATE micro_intents SET status='expired',reason='missing_followup_quote' "
+                       "WHERE id=?",(p["id"],))
             result["expired"]+=1
             continue
         q=_market(db,p["mint"],p["model"],now)
