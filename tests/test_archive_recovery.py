@@ -108,3 +108,50 @@ def test_osece_open_position_remains_unresolved_without_future_quote():
         "SELECT exit_ts,usd_out FROM osece_trades").fetchone()==(None,None) or (
         tuple(live.execute("SELECT exit_ts,usd_out FROM osece_trades").fetchone())
         ==(None,None))
+
+
+def test_micro_25_dollar_account_receipts_survive_forked_cache_ids():
+    from memeradar import micro_paper as micro
+    src=db();live=db()
+    micro.ensure(src);micro.ensure(live)
+    src.execute(
+        "INSERT INTO micro_intents "
+        "(model,stake,mint,source_signal_ts,ready_ts,ready_price,"
+        "status,entry_ts,entry_price,entry_liquidity,exit_ts,"
+        "exit_price,usd_out,exit_reason) "
+        "VALUES (?,?,?,?,?,?,'closed',?,?,?,?,?,?,?)",
+        (micro.SOCIAL,1,MINT1,1050,1070,1,1100,1,20000,1200,1.30,1.2,"TAKE"))
+    live.execute(
+        "INSERT INTO micro_intents "
+        "(model,stake,mint,source_signal_ts,ready_ts,ready_price,"
+        "status,entry_ts,entry_price,entry_liquidity) "
+        "VALUES (?,?,?,?,?,?,'open',?,?,?)",
+        (micro.SOCIAL,5,MINT2,1051,1071,1,1101,1,20000))
+    src.commit();live.commit()
+    result=reconcile(live,src,"micro_archive_run")
+    assert result["micro_added"]==1
+    assert live.execute("SELECT COUNT(*) FROM micro_intents").fetchone()[0]==2
+    assert micro.cash(live,micro.SOCIAL,1)>25
+    assert micro.cash(live,micro.SOCIAL,5)==20
+    assert reconcile(live,src,"micro_archive_run")["skipped"]=="already imported"
+
+
+def test_micro_archive_closed_exit_upgrades_same_open_without_duplicate():
+    from memeradar import micro_paper as micro
+    src=db();live=db()
+    for connection,finished in ((src,True),(live,False)):
+        micro.ensure(connection)
+        connection.execute(
+            "INSERT INTO micro_intents "
+            "(model,stake,mint,source_signal_ts,ready_ts,ready_price,"
+            "status,entry_ts,entry_price,entry_liquidity,exit_ts,exit_price,"
+            "usd_out,exit_reason) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            (micro.OSECE_LIQ,5,MINT1,1050,1070,1,
+             "closed" if finished else "open",1100,1,9000,
+             1300 if finished else None,1.4 if finished else None,
+             6.5 if finished else None,"TAKE" if finished else None))
+        connection.commit()
+    result=reconcile(live,src,"micro_closed_run")
+    assert result["micro_completed"]==1
+    assert live.execute("SELECT COUNT(*) FROM micro_intents").fetchone()[0]==1
+    assert live.execute("SELECT usd_out FROM micro_intents").fetchone()[0]==6.5

@@ -190,10 +190,17 @@ def _fill_signals(db,now):
             status="risk_rejected"
         elif not row["price_usd"] or row["price_usd"]>sig["signal_price"]*(1+MAX_PRICE_RUNUP):
             status="late_or_pumped"
-        elif _open(db,variant)>=MAX_OPEN:
+        elif os.environ.get("MICRO_PAPER_ENABLED")!="1" and _open(db,variant)>=MAX_OPEN:
             status="no_slots"
-        elif _cash(db,variant)<TRADE_USD:
+        elif os.environ.get("MICRO_PAPER_ENABLED")!="1" and _cash(db,variant)<TRADE_USD:
             status="no_cash"
+        elif os.environ.get("MICRO_PAPER_ENABLED")=="1" and variant==VERSIONS[0]:
+            from .. import micro_paper
+            micro_paper.mark_ready(
+                db,model=micro_paper.SOCIAL,mint=sig["mint"],
+                source_signal_ts=sig["signal_ts"],ready_ts=row["observed_ts"],
+                ready_price=row["price_usd"])
+            status="micro_ready"
         elif db.execute(
             "SELECT 1 FROM attention_explore_trades WHERE mint=? AND variant=? "
             "AND exit_ts IS NULL",(sig["mint"],variant)).fetchone():
@@ -231,10 +238,12 @@ def _queue_signals(db, now, started):
             last=db.execute(
                 "SELECT MAX(entry_ts) FROM attention_explore_trades "
                 "WHERE variant=? AND mint=?",(variant,mint)).fetchone()[0]
-            if last is not None and now-last<COOLDOWN_SEC:
-                continue
-            if _open(db,variant)>=MAX_OPEN or _cash(db,variant)<TRADE_USD:
-                continue
+            if os.environ.get("MICRO_PAPER_ENABLED")!="1":
+                # Legacy paper bankroll is exit-only once $25 accounts launch.
+                if last is not None and now-last<COOLDOWN_SEC:
+                    continue
+                if _open(db,variant)>=MAX_OPEN or _cash(db,variant)<TRADE_USD:
+                    continue
             row=_latest_quote(db,mint,now)
             if not row or not(source_ts<=row["observed_ts"]<=now) or now-row["observed_ts"]>QUOTE_FRESH_SEC:
                 continue

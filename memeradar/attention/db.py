@@ -130,7 +130,17 @@ def active_mints(db, *, now=None, limit=150, age_seconds=6*3600):
     """Poll chain for verified social mints AND verified GeckoTerminal base tokens."""
     now = time.time() if now is None else now
     since = now-age_seconds
-    return [r[0] for r in db.execute(
+    # Preserve price coverage for *open* and awaiting-fill Social micro
+    # positions, even when a social post ages off the discovery list.
+    priority=[]
+    if db.execute("SELECT 1 FROM sqlite_master WHERE type='table' "
+                  "AND name='micro_intents'").fetchone():
+        priority=[r[0] for r in db.execute(
+            "SELECT mint,MAX(CASE WHEN status='open' THEN 2 ELSE 1 END) rank "
+            "FROM micro_intents WHERE model='social_attention' "
+            "AND status IN ('open','queued') GROUP BY mint "
+            "ORDER BY rank DESC,MAX(ready_ts) DESC LIMIT ?",(limit,))]
+    discovered=[r[0] for r in db.execute(
         "SELECT mint FROM ("
         " SELECT mint, observed_ts FROM attention_hits"
         " WHERE observed_ts>=? AND observed_ts<=?"
@@ -140,6 +150,7 @@ def active_mints(db, *, now=None, limit=150, age_seconds=6*3600):
         " AND observed_ts>=? AND observed_ts<=?"
         ") GROUP BY mint ORDER BY MAX(observed_ts) DESC LIMIT ?",
         (since, now, since, now, limit))]
+    return list(dict.fromkeys(priority+discovered))[:limit]
 
 def recent_attention(db, mint, now, window=300):
     return [dict(r) for r in db.execute(
