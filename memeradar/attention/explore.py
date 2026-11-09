@@ -69,6 +69,10 @@ def enabled():
     return os.environ.get("ATTENTION_EXPERIMENTAL_PAPER") == "1"
 
 
+def social_only():
+    return os.environ.get("ATTENTION_EXPERIMENTAL_SOCIAL_ONLY") == "1"
+
+
 def activated_at(db, now):
     """Start only from new observations; never create pseudo-forward old trades."""
     row = db.execute(
@@ -165,6 +169,10 @@ def _fill_signals(db,now):
     for sig in db.execute(
         "SELECT * FROM attention_explore_signals WHERE status='queued' "
         "ORDER BY signal_ts,id").fetchall():
+        if social_only() and sig["variant"]!=VERSIONS[0]:
+            db.execute("UPDATE attention_explore_signals SET status='retired_no_entry' "
+                       "WHERE id=?",(sig["id"],))
+            continue  # existing trend positions still EXIT in _close_positions
         if now-sig["signal_ts"]>ENTRY_WINDOW_SEC:
             db.execute("UPDATE attention_explore_signals SET status='expired' WHERE id=?",
                        (sig["id"],))
@@ -211,6 +219,8 @@ def _fill_signals(db,now):
 def _queue_signals(db, now, started):
     queued=0
     for variant in VERSIONS:
+        if social_only() and variant!=VERSIONS[0]:
+            continue
         for mint, source_ts, rank, source in _latest_events(db,variant,now,started):
             if db.execute(
                 "SELECT 1 FROM attention_explore_signals "

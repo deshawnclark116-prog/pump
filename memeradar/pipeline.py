@@ -70,6 +70,9 @@ class Radar:
         self.cfg = cfg
         self.http = Http()
         self.store = Store(cfg.db_path)
+        # Retirement switch: only the social-attention book can open new paper positions.
+        # Other modules remain installed so historical positions can exit and logs survive.
+        self.social_attention_only = os.environ.get("SOCIAL_ATTENTION_ONLY") == "1"
         self.osece_enabled = os.environ.get("OSECE_ENABLED") == "1"
         if self.osece_enabled:
             from .osece import core as osece_core
@@ -143,7 +146,7 @@ class Radar:
                 self.store.db,mint=data["mint"],name=data.get("name") or "",
                 symbol=data.get("symbol") or "",created_ts=seen,
                 observed_ts=seen,source="pumpportal")
-        if self.grad and data.get("mint"):
+        if self.grad and not self.social_attention_only and data.get("mint"):
             self.grad.on_new_token(data["mint"], data.get("symbol", ""))
         t = self.add_candidate("solana", data["mint"], "pumpportal", data.get("symbol", ""), data.get("name", ""))
         if t:
@@ -314,6 +317,8 @@ class Radar:
                               runup=t.stage.runup, drawdown=round(t.stage.drawdown, 4))
             self.store.upsert_token(t)
             self.store.snapshot(t)
+            if self.social_attention_only:
+                continue  # observation and legacy exits only; no other model may enter
 
             if self.scalp:
                 try:
@@ -374,6 +379,8 @@ class Radar:
 
     async def _enter(self, t: TokenState, now: float, book: str, steady_reason: str = "") -> bool:
         """Send the entry alert, start watching for exits, and make the fake buy for `book`."""
+        if self.social_attention_only:
+            return False  # fail closed even if another caller bypasses score_cycle
         if (t.market_cap or 0) < self.cfg.min_entry_mcap_usd:
             return False                       # too small: these lose with every exit rule
         if not await self._fresh_price_ok(t):
@@ -516,6 +523,8 @@ class Radar:
                                kind="SCALP", link=alerts.chart_link(chain, pair or address))
 
     async def scalp_manage(self) -> None:
+        if self.social_attention_only:
+            self.scalp.watching.clear()  # manage() otherwise converts dip watches into buys
         await self.scalp.manage(self.http)
 
     async def grad_scan(self) -> None:
@@ -546,7 +555,8 @@ class Radar:
         if self.scalp:
             tasks.append(self._every(cfg.exits.check_interval, self.scalp_manage))
         if self.grad and self.pump:
-            tasks.append(self._every(cfg.grad.poll_seconds, self.grad_scan))
+            if not self.social_attention_only:
+                tasks.append(self._every(cfg.grad.poll_seconds, self.grad_scan))
             tasks.append(self._every(cfg.exits.check_interval, self.grad_manage))
         for candidate in self.candidates:
             tasks.append(self._every(cfg.exits.check_interval,

@@ -347,12 +347,20 @@ def _watch(db,now,started,cohort):
 
 
 def paper_tick(db,now=None):
-    if not enabled():
+    exit_only = os.environ.get("STRESS_SURVIVOR_EXIT_ONLY") == "1"
+    if not enabled() and not exit_only:
         return {"status":"disabled"}
     now=time.time() if now is None else now
     ensure(db)
     started=_started(db,now)
     closed=_close(db,now)
+    if exit_only or not enabled():
+        db.execute("UPDATE stress_survivor_signals SET state='retired_no_entry',"
+                   "reason='retired: social attention only' "
+                   "WHERE state IN ('watch','queued')")
+        db.commit()
+        return {"status":"retired_exit_only","closed":closed,"entered":0,
+                "watched":0,"confirmed":0}
     entered=_fill(db,now)
     cohort=_cohort(db,now)
     queued=_confirm(db,now,cohort)
