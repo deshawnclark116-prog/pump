@@ -21,7 +21,7 @@ MARKER="<!-- meme-micro-paper-dashboard-v1 -->"
 
 
 def _money(value):
-    return f"\${value:,.2f}"
+    return "$"+f"{value:,.2f}"
 
 
 def markdown(snapshot,run_id="",repo=""):
