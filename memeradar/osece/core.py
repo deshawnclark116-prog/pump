@@ -508,6 +508,17 @@ def tick(db,now=None):
             elif not _eligible_for_variant(db,sig["mint"],q["observed_ts"],q["liquidity"],sig["variant"]):
                 # Preserve the queue for a timely RugCheck refresh.
                 continue
+            elif os.environ.get("MICRO_PAPER_ENABLED")=="1":
+                from .. import micro_paper
+                model=micro_paper.from_osece(sig["variant"])
+                if model is not None:
+                    micro_paper.mark_ready(
+                        db,model=model,mint=sig["mint"],
+                        source_signal_ts=sig["launch_ts"],
+                        ready_ts=q["observed_ts"],ready_price=q["price"])
+                    status="micro_ready";reason=None
+                else:
+                    status="rejected";reason="unrecognized micro model"
             elif _open(db,sig["variant"])>=MAX_OPEN or _cash(db,sig["variant"])<TRADE_USD:
                 status="rejected";reason="capacity or cash"
             elif db.execute(
