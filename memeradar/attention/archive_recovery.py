@@ -143,7 +143,7 @@ def reconcile(db,src,source_run):
             for action in ("BUY","SELL") if r["exit_ts"] is not None else ("BUY",):
                 db.execute(
                     "INSERT OR IGNORE INTO attention_explore_notifications "
-                    "(trade_id,action,sent_ts) VALUES (?,?,?)",
+                    "(trade_id,action,notified_ts) VALUES (?,?,?)",
                     (tid,action,time.time()))
             result["social_added"]+=1
     if all(_exists(src,t) for t in ("osece_trades","osece_signals","osece_launches")):
