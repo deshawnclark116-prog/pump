@@ -58,7 +58,7 @@ jobs:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          # Retire all entry strategies except Social Attention; retain evidence and legacy exits.
+          # Social Attention plus separately authorized OSECE paper; all other trading entries retired.
           SOCIAL_ATTENTION_ONLY: "1"  # retires main radar/legacy books; OSECE is separate
           ATTENTION_ENABLED: "1"
           ATTENTION_TELEGRAM_API_ID: ${{ secrets.ATTENTION_TELEGRAM_API_ID }}
