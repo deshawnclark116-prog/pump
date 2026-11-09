@@ -45,7 +45,8 @@ async def notify(http,db,cfg):
     """).fetchall()
     count=0
     for e in events:
-        kind="COLLISION" if e["variant"]==core.COLLISION else "EARLY SIGNAL"
+        kind=("COLLISION" if e["variant"]==core.COLLISION else
+              "EARLY LIQUIDITY" if e["variant"]==core.EARLY_LIQ else "EARLY SIGNAL")
         if e["action"]=="BUY":
             message=(f"🧪 OSECE PAPER BUY | {kind} | {e['name']}\n"
                      f"{e['symbol']} · USD 10 SIMULATED @ {e['price']:.10g}\n"
