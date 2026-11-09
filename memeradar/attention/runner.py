@@ -161,6 +161,11 @@ async def run_collectors(http,db,cfg=None):
         exploratory=explore.paper_tick(db)
         if exploratory.get("entries") or exploratory.get("exits") or exploratory.get("queued"):
             log.info("ATTENTION EXPLORE PAPER: %s",exploratory)
+        if __import__("os").environ.get("MICRO_PAPER_ENABLED")=="1":
+            from .. import micro_paper
+            changes=micro_paper.tick(db)
+            if changes["bought"] or changes["sold"]:
+                log.info("MICRO PAPER: %s",changes)
         stress=stress_survivor.paper_tick(db)
         if any(stress.get(k) for k in ("watched","confirmed","entered","closed")):
             log.info("STRESS SURVIVOR PAPER: %s",stress)
