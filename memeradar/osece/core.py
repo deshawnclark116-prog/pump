@@ -26,7 +26,8 @@ log = logging.getLogger(__name__)
 VERSION = "osece_v1_frozen_20261108"
 SINGLE = VERSION + "_single_source"
 COLLISION = VERSION + "_cross_source"
-BOOKS = (SINGLE, COLLISION)
+EARLY_LIQ = "osece_v1b_early_liquidity_paper_20261109"
+BOOKS = (SINGLE, COLLISION, EARLY_LIQ)
 INITIAL_CASH = 250
 TRADE_USD = 10
 MAX_OPEN = 3
@@ -307,11 +308,17 @@ def record_launch(db, *, mint, name, symbol, created_ts=None,
                        "(variant,mint,launch_ts,term_key,source_count,state)"
                        " VALUES (?,?,?,?,?,'watch')",
                        (COLLISION,mint,now,key,n))
+        # Explicitly separate low-liquidity experiment: does not change
+        # the frozen single-source or cross-source strategy requirements.
+        db.execute("INSERT OR IGNORE INTO osece_signals "
+                   "(variant,mint,launch_ts,term_key,source_count,state)"
+                   " VALUES (?,?,?,?,?,'watch')",
+                   (EARLY_LIQ,mint,now,key,n))
     db.commit()
     if cur.rowcount:
         log.info("OSECE MATCH mint=%s name=%s term=%s sources=%s variants=%s",
-                 mint,name,key,sorted(sources),1+(n>=2))
-    return {"status":"matched","sources":n,"signals":1+(n>=2) if cur.rowcount else 0}
+                 mint,name,key,sorted(sources),2+(n>=2))
+    return {"status":"matched","sources":n,"signals":2+(n>=2) if cur.rowcount else 0}
 
 
 def _num(v):
@@ -387,13 +394,37 @@ def _open(db,variant):
                       "WHERE variant=? AND exit_ts IS NULL",(variant,)).fetchone()[0]
 
 
-def _market_entry_ok(q):
+def _market_entry_ok(q, variant=None):
+    if variant==EARLY_LIQ:
+        # New paper-only arm: lower liquidity, stricter measured buyer
+        # pressure, no Organic Score gate (many new tokens report zero).
+        # A verified RugCheck pass is ALSO mandatory at entry.
+        return bool(q and q["liquidity"]>=5000 and q["price"]>0 and
+                    q["buy_usd_m5"] is not None and q["sell_usd_m5"] is not None and
+                    q["buy_usd_m5"]>=500 and
+                    q["buy_usd_m5"]>=1.25*max(100,q["sell_usd_m5"]) and
+                    q["num_traders"] is not None and q["num_traders"]>=8 and
+                    q["audit_ok"]==1)
+    # Original arms stay frozen: do not retrofit historical threshold changes.
     return bool(q and q["liquidity"]>=20000 and q["price"]>0 and
                 q["buy_usd_m5"] is not None and q["sell_usd_m5"] is not None and
                 q["buy_usd_m5"]>=1200 and
                 q["buy_usd_m5"]>=1.2*max(100,q["sell_usd_m5"]) and
                 q["organic_score"] is not None and q["organic_score"]>=25 and
                 q["audit_ok"]==1)
+
+
+def _eligible_for_variant(db,mint,ts,liq,variant):
+    if variant!=EARLY_LIQ:
+        return eligible(db,mint,ts,liq)
+    if liq<5000:
+        return False
+    row=db.execute(
+        "SELECT state,checked_ts FROM attention_safety_history "
+        "WHERE mint=? AND checked_ts<=? ORDER BY checked_ts DESC LIMIT 1",
+        (mint,ts)).fetchone()
+    return bool(row and row["state"]=="passed" and
+                0<=ts-row["checked_ts"]<=3600)
 
 
 def tick(db,now=None):
@@ -445,7 +476,7 @@ def tick(db,now=None):
         if state=="watch":
             if not q or q["observed_ts"]<=sig["launch_ts"]+30:
                 continue
-            if not _market_entry_ok(q):
+            if not _market_entry_ok(q,sig["variant"]):
                 continue
             db.execute("UPDATE osece_signals "
                        "SET state='confirm',watch_ts=?,watch_price=? WHERE id=?",
@@ -454,7 +485,7 @@ def tick(db,now=None):
         elif state=="confirm":
             if not q or q["observed_ts"]<sig["watch_ts"]+30:
                 continue
-            if (not _market_entry_ok(q) or
+            if (not _market_entry_ok(q,sig["variant"]) or
                 not sig["watch_price"]*.94<=q["price"]<=sig["watch_price"]*1.12):
                 db.execute("UPDATE osece_signals SET state='rejected',reason='confirmation failed' "
                            "WHERE id=?",(sig["id"],))
@@ -472,9 +503,9 @@ def tick(db,now=None):
                            "WHERE id=?",(sig["id"],))
                 result["rejected"]+=1
                 continue
-            if not _market_entry_ok(q) or q["price"]>sig["confirm_price"]*1.10:
+            if not _market_entry_ok(q,sig["variant"]) or q["price"]>sig["confirm_price"]*1.10:
                 status="rejected"; reason="late runup or missing buyer evidence"
-            elif not eligible(db,sig["mint"],q["observed_ts"],q["liquidity"]):
+            elif not _eligible_for_variant(db,sig["mint"],q["observed_ts"],q["liquidity"],sig["variant"]):
                 # Preserve the queue for a timely RugCheck refresh.
                 continue
             elif _open(db,sig["variant"])>=MAX_OPEN or _cash(db,sig["variant"])<TRADE_USD:
