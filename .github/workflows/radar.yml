@@ -15,6 +15,7 @@ on:
 permissions:
   contents: read
   actions: read
+  issues: write  # update one live $25 paper dashboard issue comment; no code push
 
 concurrency:
   group: radar
@@ -54,6 +55,8 @@ jobs:
       - name: radar
         run: python -m memeradar run --duration 20700
         env:
+          GH_TOKEN: ${{ github.token }}  # publish the live read-only paper status Issue
+          MICRO_PAPER_ENABLED: "1"  # $25 per model/account, parallel $1 and $5 paper stakes
           NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
@@ -124,6 +127,7 @@ jobs:
           python -m memeradar.attention.loss_audit --db research-output/memeradar.db --output research-output/social-loss-audit.json
           python -m memeradar.attention --db research-output/memeradar.db stress-report > research-output/stress-survivor-paper.json
           python -m memeradar.osece --db research-output/memeradar.db report > research-output/osece-paper-report.json
+          python -m memeradar.micro_paper --db research-output/memeradar.db report > research-output/micro-paper-report.json
           python -m memeradar.research --db research-output/memeradar.db --since "$(date -u -d '24 hours ago' +%Y-%m-%dT%H:%M:%SZ)" --until "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --output research-output/replay.json
       - uses: actions/upload-artifact@v4
         if: always() && hashFiles('research-output/audit.json') != ''
