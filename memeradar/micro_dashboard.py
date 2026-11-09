@@ -66,7 +66,7 @@ def markdown(snapshot,run_id="",repo=""):
         result=("OPEN" if t["status"]=="open" else
                 f"{_money(t['usd_out']-stake)} ({t['exit_reason']})")
         lines.append(
-            f"| {model} | {_money(stake)} | \`{t['mint'][:12]}…\` | "
+            f"| {model} | {_money(stake)} | `{t['mint'][:12]}…` | "
             f"{when} | {result} |")
     lines+=["","---",
             "### Modeling and integrity",
