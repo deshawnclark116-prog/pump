@@ -178,6 +178,38 @@ def reconcile(db,src,source_run):
                     "(trade_id,action,sent_ts) VALUES (?,?,?)",
                     (cur.lastrowid,action,time.time()))
             result["osece_added"]+=1
+    # Restore $25 paper account fills independently from old $250 books.
+    # Never trust forked integer ids; the model/stake/mint/source receipt
+    # timestamp is the identity across Github run archival branches.
+    if _exists(src,"micro_intents"):
+        from .. import micro_paper
+        micro_paper.ensure(db)
+        result["micro_added"]=0
+        result["micro_completed"]=0
+        for r in src.execute(
+            "SELECT * FROM micro_intents WHERE entry_ts IS NOT NULL "
+            "ORDER BY entry_ts"):
+            prior=db.execute(
+                "SELECT id,status,exit_ts FROM micro_intents WHERE "
+                "model=? AND stake=? AND mint=? AND source_signal_ts=?",
+                (r["model"],r["stake"],r["mint"],r["source_signal_ts"])).fetchone()
+            if prior:
+                if prior["exit_ts"] is None and r["exit_ts"] is not None:
+                    db.execute(
+                        "UPDATE micro_intents SET status='closed',"
+                        "exit_ts=?,exit_price=?,usd_out=?,exit_reason=? "
+                        "WHERE id=?",(r["exit_ts"],r["exit_price"],r["usd_out"],
+                                      r["exit_reason"],prior["id"]))
+                    result["micro_completed"]+=1
+                continue
+            cols=("model","stake","mint","source_signal_ts","ready_ts",
+                  "ready_price","status","reason","entry_ts","entry_price",
+                  "entry_liquidity","exit_ts","exit_price","usd_out",
+                  "exit_reason")
+            db.execute("INSERT INTO micro_intents ("+",".join(cols)+
+                       ") VALUES ("+",".join("?" for _ in cols)+")",
+                       tuple(r[c] for c in cols))
+            result["micro_added"]+=1
     db.execute("INSERT INTO paper_archive_recovery "
                "(run_id,recovered_at,social_trades_added,osece_trades_added,"
                "social_trades_closed,osece_trades_closed) VALUES (?,?,?,?,?,?)",
