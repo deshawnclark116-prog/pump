@@ -397,7 +397,8 @@ def _market_entry_ok(q):
 
 
 def tick(db,now=None):
-    if not enabled():
+    exit_only = os.environ.get("OSECE_EXIT_ONLY") == "1"
+    if not enabled() and not exit_only:
         return {"status":"disabled"}
     ensure(db)
     now=time.time() if now is None else now
@@ -422,6 +423,15 @@ def tick(db,now=None):
         log.info("OSECE PAPER SELL %s mint=%s net=$%+.2f reason=%s",
                  pos["variant"],pos["mint"],out-pos["usd_in"],why)
         result["sold"]+=1
+    if exit_only or not enabled():
+        # Continue following real, new quotes for prior open fake positions,
+        # but retire queued/candidate buys rather than generating new fills.
+        db.execute("UPDATE osece_signals "
+                   "SET state='retired_no_entry',reason='retired: social attention only' "
+                   "WHERE state IN ('watch','confirm','queued')")
+        db.commit()
+        result["status"]="retired_exit_only"
+        return result
     for sig in db.execute(
         "SELECT * FROM osece_signals WHERE state IN ('watch','confirm','queued') "
         "ORDER BY launch_ts,id").fetchall():
