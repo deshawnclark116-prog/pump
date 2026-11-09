@@ -12,6 +12,10 @@ on:
   workflow_dispatch:
   schedule:
     - cron: "7 * * * *"
+permissions:
+  contents: read
+  actions: read
+
 concurrency:
   group: radar
   # A new code push replaces a stale runner; ordinary hourly schedules never interrupt it.
