@@ -70,6 +70,11 @@ class Radar:
         self.cfg = cfg
         self.http = Http()
         self.store = Store(cfg.db_path)
+        self.micro_paper_enabled = os.environ.get("MICRO_PAPER_ENABLED") == "1"
+        if self.micro_paper_enabled:
+            from . import micro_paper
+            micro_paper.ensure(self.store.db)
+            micro_paper.activated(self.store.db,time.time())
         # Retirement switch: only the social-attention book can open new paper positions.
         # Other modules remain installed so historical positions can exit and logs survive.
         self.social_attention_only = os.environ.get("SOCIAL_ATTENTION_ONLY") == "1"
@@ -533,6 +538,13 @@ class Radar:
     async def grad_manage(self) -> None:
         await self.grad.manage(self.http)
 
+    async def publish_micro_dashboard(self) -> None:
+        if not self.micro_paper_enabled:
+            return
+        from .micro_dashboard import publish_async
+        result=await publish_async(self.store.db)
+        log.info("micro paper dashboard: %s",result)
+
     async def housekeeping(self) -> None:
         removed = self.store.prune(self.cfg.keep_days)
         if removed:
@@ -569,6 +581,8 @@ class Radar:
         if self.osece_enabled:
             from .osece.runner import run as run_osece
             tasks.append(run_osece(self.http,self.store.db,self.cfg))
+        if self.micro_paper_enabled:
+            tasks.append(self._every(600, self.publish_micro_dashboard))
         tasks.append(self._every(3600, self.housekeeping))
         if not duration:  # long-running server: tell the phone it's alive
             watching = len(self.positions)
