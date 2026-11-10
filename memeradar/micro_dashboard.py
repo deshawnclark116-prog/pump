@@ -28,11 +28,11 @@ def markdown(snapshot,run_id="",repo=""):
     now=snapshot["asof_utc"]
     lines=[
         MARKER,
-        "## Live $25 paper trading — eight independent accounts",
+        "## Live $25 paper trading — twelve independent accounts",
         f"**Last observed:** {now} · **Radar run:** "+
         (f"[{run_id}](https://github.com/{repo}/actions/runs/{run_id})" if run_id and repo else "unknown"),
         "",
-        "Each model has **two independent $25 wallets** ($1 and $5 stake). No real trades.",
+        "Each model has **two independent $25 paper accounts** ($1 and $5 stake). No real trades.",
         "The figures below reflect actual recorded paper fills; no bankroll top-ups.",
         "",
         "| Strategy | Stake | Cash | Open | Closed (W–L) | Realized net | Estimated equity |",
@@ -40,10 +40,12 @@ def markdown(snapshot,run_id="",repo=""):
     ]
     for r in snapshot["accounts"]:
         label={
-            micro_paper.SOCIAL:"Social Attention",
+            micro_paper.SOCIAL:"Social Attention (control)",
+            micro_paper.SOCIAL_GUARDED:"Social Guarded (prospective)",
             micro_paper.OSECE_SINGLE:"OSECE Early Signal",
             micro_paper.OSECE_COLLISION:"OSECE Collision",
             micro_paper.OSECE_LIQ:"OSECE Early Liquidity",
+            micro_paper.OSECE_COLLISION_LIQ:"OSECE Collision Early (prospective)",
         }[r["model"]]
         eq=_money(r["estimated_equity_usd"]) if r["estimated_equity_usd"] is not None else "Unpriced position"
         lines.append(
