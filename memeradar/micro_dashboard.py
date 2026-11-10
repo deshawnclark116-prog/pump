@@ -70,6 +70,29 @@ def markdown(snapshot,run_id="",repo=""):
         lines.append(
             f"| {model} | {_money(stake)} | `{t['mint'][:12]}…` | "
             f"{when} | {result} |")
+    lines+=["","### Why some signals did not become trades",
+            "Rejected or expired micro paper entries (since experiment start):"]
+    by_reason=snapshot.get("candidate_rejection_reasons") or []
+    if by_reason:
+        lines+=["| Model | Stake | Cause | Count |",
+                "|---|---:|---|---:|"]
+        for x in by_reason:
+            lines.append(
+                f"| {x['model']} | {_money(x['stake'])} | "
+                f"{x['reason'] or x['status']} | {x['count']} |")
+    else:
+        lines.append("No rejected micro intents recorded yet.")
+    osece=snapshot.get("osece_signal_diagnostics") or []
+    if osece:
+        lines+=["","OSECE signal funnel (includes watches with no qualifying entry):",
+                "| Model | State | Reason | Count |",
+                "|---|---|---|---:|"]
+        for x in osece:
+            label=x["variant"].replace("osece_v1_frozen_20261108_","").replace(
+                "osece_v1b_early_liquidity_paper_20261109","early_liquidity").replace(
+                "osece_v1c_cross_source_early_liquidity_20261110","collision_early")
+            lines.append(
+                f"| {label} | {x['state']} | {x['reason'] or '—'} | {x['count']} |")
     lines+=["","---",
             "### Modeling and integrity",
             "Fees: 1.25% + 1% slippage **each side**, plus **estimated $0.02 each side** fixed overhead. "
