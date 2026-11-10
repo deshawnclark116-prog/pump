@@ -357,7 +357,24 @@ def report(db,now=None,limit=40):
                     "AND status='queued'",(model,size)).fetchone()[0],
                 "trades":positions,
             })
+    # Keep the reason each candidate did NOT turn into a trade. This
+    # prevents conflating "failed RugCheck" with "no timely market quote".
+    rejected=[dict(r) for r in db.execute(
+        "SELECT model,stake,status,reason,COUNT(*) count FROM micro_intents "
+        "WHERE status IN ('rejected','expired') GROUP BY model,stake,status,reason "
+        "ORDER BY model,stake,status,reason")]
+    osece_diagnostics=[]
+    if db.execute("SELECT 1 FROM sqlite_master WHERE type='table' "
+                  "AND name='osece_signals'").fetchone():
+        epoch=float(start[0]) if start else 0
+        osece_diagnostics=[dict(r) for r in db.execute(
+            "SELECT variant,state,COALESCE(reason,'') reason,COUNT(*) count "
+            "FROM osece_signals WHERE launch_ts>=? "
+            "GROUP BY variant,state,reason ORDER BY variant,state,reason",
+            (epoch,))]
     return {
+        "candidate_rejection_reasons":rejected,
+        "osece_signal_diagnostics":osece_diagnostics,
         "mode":"paper_only_small_bankroll","activated_utc":(
             datetime.fromtimestamp(float(start[0]),timezone.utc).isoformat()
             if start else None),
