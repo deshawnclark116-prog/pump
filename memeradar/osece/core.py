@@ -27,7 +27,10 @@ VERSION = "osece_v1_frozen_20261108"
 SINGLE = VERSION + "_single_source"
 COLLISION = VERSION + "_cross_source"
 EARLY_LIQ = "osece_v1b_early_liquidity_paper_20261109"
-BOOKS = (SINGLE, COLLISION, EARLY_LIQ)
+# Separate experiment: 2 independent cultural sources, earlier liquidity
+# eligibility. Original source-diverse champion remains frozen and unchanged.
+COLLISION_EARLY = "osece_v1c_cross_source_early_liquidity_20261110"
+BOOKS = (SINGLE, COLLISION, EARLY_LIQ, COLLISION_EARLY)
 INITIAL_CASH = 250
 TRADE_USD = 10
 MAX_OPEN = 3
@@ -308,6 +311,11 @@ def record_launch(db, *, mint, name, symbol, created_ts=None,
                        "(variant,mint,launch_ts,term_key,source_count,state)"
                        " VALUES (?,?,?,?,?,'watch')",
                        (COLLISION,mint,now,key,n))
+            # Distinct *new* experimental arm, not a frozen collision retune.
+            db.execute("INSERT OR IGNORE INTO osece_signals "
+                       "(variant,mint,launch_ts,term_key,source_count,state)"
+                       " VALUES (?,?,?,?,?,'watch')",
+                       (COLLISION_EARLY,mint,now,key,n))
         # Explicitly separate low-liquidity experiment: does not change
         # the frozen single-source or cross-source strategy requirements.
         db.execute("INSERT OR IGNORE INTO osece_signals "
@@ -317,8 +325,8 @@ def record_launch(db, *, mint, name, symbol, created_ts=None,
     db.commit()
     if cur.rowcount:
         log.info("OSECE MATCH mint=%s name=%s term=%s sources=%s variants=%s",
-                 mint,name,key,sorted(sources),2+(n>=2))
-    return {"status":"matched","sources":n,"signals":2+(n>=2) if cur.rowcount else 0}
+                 mint,name,key,sorted(sources),2+2*(n>=2))
+    return {"status":"matched","sources":n,"signals":2+2*(n>=2) if cur.rowcount else 0}
 
 
 def _num(v):
@@ -407,7 +415,9 @@ def _open(db,variant):
 
 
 def _market_entry_ok(q, variant=None):
-    if variant==EARLY_LIQ:
+    if variant in (EARLY_LIQ,COLLISION_EARLY):
+        # Only the separately labeled experimental arms allow low-liquidity
+        # market confirmation. All original v1 filters remain unchanged.
         # New paper-only arm: lower liquidity, stricter measured buyer
         # pressure, no Organic Score gate (many new tokens report zero).
         # A verified RugCheck pass is ALSO mandatory at entry.
@@ -427,7 +437,7 @@ def _market_entry_ok(q, variant=None):
 
 
 def _eligible_for_variant(db,mint,ts,liq,variant):
-    if variant!=EARLY_LIQ:
+    if variant not in (EARLY_LIQ,COLLISION_EARLY):
         return eligible(db,mint,ts,liq)
     if liq<5000:
         return False
@@ -518,8 +528,17 @@ def tick(db,now=None):
             if not _market_entry_ok(q,sig["variant"]) or q["price"]>sig["confirm_price"]*1.10:
                 status="rejected"; reason="late runup or missing buyer evidence"
             elif not _eligible_for_variant(db,sig["mint"],q["observed_ts"],q["liquidity"],sig["variant"]):
-                # Preserve the queue for a timely RugCheck refresh.
-                continue
+                # A recorded failed RugCheck will never become safe merely by
+                # waiting for another quote. Reject explicitly instead of
+                # misleadingly reporting this as a missing execution quote.
+                verdict=db.execute(
+                    "SELECT state FROM attention_safety_history "
+                    "WHERE mint=? AND checked_ts<=? ORDER BY checked_ts DESC LIMIT 1",
+                    (sig["mint"],q["observed_ts"])).fetchone()
+                if verdict and verdict["state"]=="failed":
+                    status="rejected";reason="rugcheck_failed"
+                else:
+                    continue  # unknown safety is not a simulated fill
             elif os.environ.get("MICRO_PAPER_ENABLED")=="1":
                 from .. import micro_paper
                 model=micro_paper.from_osece(sig["variant"])
