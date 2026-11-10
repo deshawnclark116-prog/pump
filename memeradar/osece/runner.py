@@ -47,6 +47,7 @@ async def notify(http,db,cfg):
     count=0
     for e in events:
         kind=("COLLISION" if e["variant"]==core.COLLISION else
+              "CROSS-SOURCE EARLY (EXPERIMENT)" if e["variant"]==core.COLLISION_EARLY else
               "EARLY LIQUIDITY" if e["variant"]==core.EARLY_LIQ else "EARLY SIGNAL")
         if e["action"]=="BUY":
             message=(f"🧪 OSECE PAPER BUY | {kind} | {e['name']}\n"

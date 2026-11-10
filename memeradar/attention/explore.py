@@ -196,10 +196,11 @@ def _fill_signals(db,now):
             status="no_cash"
         elif os.environ.get("MICRO_PAPER_ENABLED")=="1" and variant==VERSIONS[0]:
             from .. import micro_paper
-            micro_paper.mark_ready(
-                db,model=micro_paper.SOCIAL,mint=sig["mint"],
-                source_signal_ts=sig["signal_ts"],ready_ts=row["observed_ts"],
-                ready_price=row["price_usd"])
+            for model in (micro_paper.SOCIAL,micro_paper.SOCIAL_GUARDED):
+                micro_paper.mark_ready(
+                    db,model=model,mint=sig["mint"],
+                    source_signal_ts=sig["signal_ts"],ready_ts=row["observed_ts"],
+                    ready_price=row["price_usd"])
             status="micro_ready"
         elif db.execute(
             "SELECT 1 FROM attention_explore_trades WHERE mint=? AND variant=? "

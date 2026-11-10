@@ -1,4 +1,4 @@
-"""Regression tests for eight real 25-dollar PAPER accounts and live status."""
+"""Regression tests for twelve independent 25-dollar PAPER accounts and live status."""
 from __future__ import annotations
 
 import asyncio
@@ -72,13 +72,13 @@ def test_two_independent_25_balances_and_actual_fixed_costs(monkeypatch):
     assert all(a["starting_cash_usd"]==25 for a in r["accounts"])
 
 
-def test_all_four_models_generate_separate_intents(monkeypatch):
+def test_all_six_models_generate_separate_intents(monkeypatch):
     monkeypatch.setenv("MICRO_PAPER_ENABLED","1")
     d=db()
     for model in m.MODELS:
         assert m.mark_ready(d,model=model,mint=MINT,
                             source_signal_ts=1010,ready_ts=1100,ready_price=1)==2
-    assert d.execute("SELECT COUNT(*) FROM micro_intents").fetchone()[0]==8
+    assert d.execute("SELECT COUNT(*) FROM micro_intents").fetchone()[0]==12
     assert m.report(d)["accounts"][0]["cash_usd"]==25
 
 
@@ -162,3 +162,64 @@ def test_dashboard_page_and_create_update(monkeypatch):
     monkeypatch.setattr(dash,"_request",existing)
     assert dash.publish(page,repo="owner/repo",token="fake")["status"]=="updated"
     assert calls[-1][0]=="PATCH"
+
+
+def guard_social_signal(d,mint=MINT,signal_price=1.0,signal_ts=1065):
+    d.execute(
+        "INSERT INTO attention_explore_signals "
+        "(variant,mint,source,source_ts,signal_ts,signal_price,"
+        "signal_liquidity,buy_proxy_m5,buyers_m5,sellers_m5,"
+        "source_rank,status,details) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        (explore.VERSIONS[0],mint,"bluesky",signal_ts-20,
+         signal_ts,signal_price,60000,2000,20,10,1,"micro_ready","{}"))
+    d.commit()
+
+
+def test_social_guard_only_buys_after_independent_positive_confirmation(monkeypatch):
+    monkeypatch.setenv("MICRO_PAPER_ENABLED","1")
+    d=db();safety(d)
+    guard_social_signal(d)
+    assert m.mark_ready(d,model=m.SOCIAL_GUARDED,mint=MINT,
+                        source_signal_ts=1065,ready_ts=1100,ready_price=1.01)==2
+    social_quote(d,1100,1.01)
+    assert m.tick(d,1100)["bought"]==0
+    social_quote(d,1130,1.02)
+    assert m.tick(d,1130)["bought"]==2
+    assert m.open_count(d,m.SOCIAL_GUARDED,1)==1
+    assert m.cash(d,m.SOCIAL_GUARDED,1)==24
+    assert m.cash(d,m.SOCIAL,1)==25
+
+
+def test_social_guard_blocks_weak_buyers_without_changing_control(monkeypatch):
+    monkeypatch.setenv("MICRO_PAPER_ENABLED","1")
+    d=db();safety(d);guard_social_signal(d)
+    for model in (m.SOCIAL,m.SOCIAL_GUARDED):
+        m.mark_ready(d,model=model,mint=MINT,source_signal_ts=1065,
+                     ready_ts=1100,ready_price=1.01)
+    for ts in (1100,1130):
+        d.execute(
+            "INSERT INTO attention_chain "
+            "(mint,observed_ts,price_usd,liquidity_usd,market_cap,vol_m5,"
+            "buys_m5,sells_m5,buy_volume_proxy_m5,pair) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?)",
+            (MINT,ts,1.01,60000,80000,3000,1010,1000,2000,"pair"))
+    d.commit()
+    assert m.tick(d,1130)["bought"]==2  # control only
+    assert m.open_count(d,m.SOCIAL_GUARDED,1)==0
+    assert m.open_count(d,m.SOCIAL,1)==1
+    reason=d.execute("SELECT reason FROM micro_intents WHERE model=? AND stake=1",
+                     (m.SOCIAL_GUARDED,)).fetchone()[0]
+    assert reason=="guard_weak_buyer_confirmation"
+
+
+def test_original_osece_collision_remains_strict_and_lite_arm_is_independent(monkeypatch):
+    monkeypatch.setenv("MICRO_PAPER_ENABLED","1")
+    d=db();safety(d)
+    for model in (m.OSECE_COLLISION,m.OSECE_COLLISION_LIQ):
+        assert m.mark_ready(d,model=model,mint=MINT,
+                            source_signal_ts=1065,ready_ts=1100,ready_price=1)==2
+    jupiter_quote(d,1130,1.01,liq=9000,score=0)
+    assert m.tick(d,1130)["bought"]==2
+    assert m.open_count(d,m.OSECE_COLLISION,1)==0
+    assert m.open_count(d,m.OSECE_COLLISION_LIQ,1)==1
+    assert m.cash(d,m.OSECE_COLLISION,5)==25

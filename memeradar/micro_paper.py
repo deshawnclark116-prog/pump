@@ -27,10 +27,12 @@ from .attention import explore
 log=logging.getLogger(__name__)
 
 SOCIAL="social_attention"
+SOCIAL_GUARDED="social_attention_guarded_20261110"
 OSECE_SINGLE="osece_early_signal"
 OSECE_COLLISION="osece_cross_source"
 OSECE_LIQ="osece_early_liquidity"
-MODELS=(SOCIAL,OSECE_SINGLE,OSECE_COLLISION,OSECE_LIQ)
+OSECE_COLLISION_LIQ="osece_cross_source_early_liquidity_20261110"
+MODELS=(SOCIAL,SOCIAL_GUARDED,OSECE_SINGLE,OSECE_COLLISION,OSECE_LIQ,OSECE_COLLISION_LIQ)
 SIZE_OPTIONS=(1.0,5.0)
 START_CASH=25.0
 FEE_PER_SIDE=0.0125
@@ -88,6 +90,7 @@ def from_osece(variant):
         core.SINGLE:OSECE_SINGLE,
         core.COLLISION:OSECE_COLLISION,
         core.EARLY_LIQ:OSECE_LIQ,
+        core.COLLISION_EARLY:OSECE_COLLISION_LIQ,
     }.get(variant)
 
 
@@ -141,7 +144,7 @@ def open_count(db,model,size):
 
 
 def _latest(db,mint,model,now):
-    if model==SOCIAL:
+    if model in (SOCIAL,SOCIAL_GUARDED):
         return db.execute(
             "SELECT observed_ts,price_usd price,liquidity_usd liquidity "
             "FROM attention_chain WHERE mint=? AND observed_ts<=? AND observed_ts>? "
@@ -157,7 +160,7 @@ def _market(db,mint,model,now):
     q=_latest(db,mint,model,now)
     if not q or not q["price"] or not math.isfinite(q["price"]):
         return None
-    if model==SOCIAL:
+    if model in (SOCIAL,SOCIAL_GUARDED):
         if not eligible(db,mint,q["observed_ts"],q["liquidity"]):
             return None
         return q
@@ -169,11 +172,46 @@ def _market(db,mint,model,now):
         OSECE_SINGLE:core.SINGLE,
         OSECE_COLLISION:core.COLLISION,
         OSECE_LIQ:core.EARLY_LIQ,
+        OSECE_COLLISION_LIQ:core.COLLISION_EARLY,
     }.get(model)
     if not core._market_entry_ok(full,source_variant) or not core._eligible_for_variant(
             db,mint,q["observed_ts"],q["liquidity"],source_variant):
         return None
     return q
+
+
+def _guard_social_reason(db, p, q):
+    """Prospective two-quote buyer-confirmation arm (not an optimized champion).
+
+    Original Social Attention stays unchanged. All receipts precede the
+    simulated fill. No outcome-based selection on the consumed holdout.
+    """
+    if q["liquidity"] < 25000:
+        return "guard_low_liquidity"
+    rows=db.execute(
+        "SELECT observed_ts,price_usd,liquidity_usd,vol_m5,buys_m5,sells_m5,"
+        "buy_volume_proxy_m5 FROM attention_chain WHERE mint=? AND observed_ts<=? "
+        "AND observed_ts>=? ORDER BY observed_ts DESC LIMIT 4",
+        (p["mint"],q["observed_ts"],q["observed_ts"]-120)).fetchall()
+    if len(rows)<2 or rows[1]["observed_ts"]>rows[0]["observed_ts"]-20:
+        return "guard_no_independent_quote"
+    if any(r["buys_m5"]<15 or r["sells_m5"]<2 or
+           r["buys_m5"]<1.25*r["sells_m5"] or
+           r["buy_volume_proxy_m5"]<500 or
+           r["vol_m5"]<1000 or r["liquidity_usd"]<25000
+           for r in rows[:2]):
+        return "guard_weak_buyer_confirmation"
+    source=db.execute(
+        "SELECT signal_price FROM attention_explore_signals WHERE variant=? "
+        "AND mint=? AND ABS(signal_ts-?)<0.001 ORDER BY id DESC LIMIT 1",
+        (explore.VERSIONS[0],p["mint"],p["source_signal_ts"])).fetchone()
+    if not source or source["signal_price"]<=0:
+        return "guard_source_signal_missing"
+    if q["price"]>source["signal_price"]*1.05:
+        return "guard_price_chase_over_5pct"
+    if q["price"]<rows[1]["price_usd"]*.94:
+        return "guard_short_term_dump"
+    return None
 
 
 def tick(db,now=None):
@@ -193,11 +231,11 @@ def tick(db,now=None):
             continue
         value=proceeds(p["entry_price"],q["price"],p["stake"])
         pct=(value/p["stake"]-1)*100
-        hold=SOCIAL_HOLD if p["model"]==SOCIAL else OSECE_HOLD
-        stop=-20 if p["model"]==SOCIAL else -12
+        hold=SOCIAL_HOLD if p["model"] in (SOCIAL,SOCIAL_GUARDED) else OSECE_HOLD
+        stop=-20 if p["model"] in (SOCIAL,SOCIAL_GUARDED) else -12
         reason=("TAKE_PROFIT_NET_20" if pct>=20 else
                 "STOP_LOSS_NET" if pct<=stop else
-                "LIQUIDITY_DRAIN" if p["model"]!=SOCIAL and
+                "LIQUIDITY_DRAIN" if p["model"] not in (SOCIAL,SOCIAL_GUARDED) and
                  q["liquidity"]<.75*p["entry_liquidity"] else
                 "TIME_LIMIT" if now-p["entry_ts"]>=hold else None)
         if not reason:
@@ -221,6 +259,12 @@ def tick(db,now=None):
         if not q or q["observed_ts"]<p["ready_ts"]+ENTRY_LAG:
             result["waiting"]+=1
             continue
+        if p["model"]==SOCIAL_GUARDED:
+            reason=_guard_social_reason(db,p,q)
+            if reason is not None:
+                db.execute("UPDATE micro_intents SET status='rejected',reason=? "
+                           "WHERE id=?",(reason,p["id"]))
+                continue
         if q["observed_ts"]>p["ready_ts"]+MAX_ENTRY_WAIT:
             db.execute("UPDATE micro_intents SET status='expired',reason='late_quote' "
                        "WHERE id=?",(p["id"],))
@@ -235,12 +279,12 @@ def tick(db,now=None):
             "SELECT MAX(entry_ts) FROM micro_intents WHERE model=? AND stake=? "
             "AND mint=? AND entry_ts IS NOT NULL",
             (p["model"],p["stake"],p["mint"])).fetchone()[0]
-        cooldown=SOCIAL_COOLDOWN if p["model"]==SOCIAL else OSECE_COOLDOWN
+        cooldown=SOCIAL_COOLDOWN if p["model"] in (SOCIAL,SOCIAL_GUARDED) else OSECE_COOLDOWN
         if previous is not None and now-previous<cooldown:
             db.execute("UPDATE micro_intents SET status='rejected',reason='cooldown'"
                        " WHERE id=?",(p["id"],))
             continue
-        maximum=15 if p["stake"]==1 else 4
+        maximum=(6 if p["stake"]==1 else 2) if p["model"]==SOCIAL_GUARDED else (15 if p["stake"]==1 else 4)
         if open_count(db,p["model"],p["stake"])>=maximum:
             db.execute("UPDATE micro_intents SET status='rejected',reason='slots_full'"
                        " WHERE id=?",(p["id"],))
@@ -313,7 +357,24 @@ def report(db,now=None,limit=40):
                     "AND status='queued'",(model,size)).fetchone()[0],
                 "trades":positions,
             })
+    # Keep the reason each candidate did NOT turn into a trade. This
+    # prevents conflating "failed RugCheck" with "no timely market quote".
+    rejected=[dict(r) for r in db.execute(
+        "SELECT model,stake,status,reason,COUNT(*) count FROM micro_intents "
+        "WHERE status IN ('rejected','expired') GROUP BY model,stake,status,reason "
+        "ORDER BY model,stake,status,reason")]
+    osece_diagnostics=[]
+    if db.execute("SELECT 1 FROM sqlite_master WHERE type='table' "
+                  "AND name='osece_signals'").fetchone():
+        epoch=float(start[0]) if start else 0
+        osece_diagnostics=[dict(r) for r in db.execute(
+            "SELECT variant,state,COALESCE(reason,'') reason,COUNT(*) count "
+            "FROM osece_signals WHERE launch_ts>=? "
+            "GROUP BY variant,state,reason ORDER BY variant,state,reason",
+            (epoch,))]
     return {
+        "candidate_rejection_reasons":rejected,
+        "osece_signal_diagnostics":osece_diagnostics,
         "mode":"paper_only_small_bankroll","activated_utc":(
             datetime.fromtimestamp(float(start[0]),timezone.utc).isoformat()
             if start else None),

@@ -137,7 +137,7 @@ def active_mints(db, *, now=None, limit=150, age_seconds=6*3600):
                   "AND name='micro_intents'").fetchone():
         priority=[r[0] for r in db.execute(
             "SELECT mint,MAX(CASE WHEN status='open' THEN 2 ELSE 1 END) rank "
-            "FROM micro_intents WHERE model='social_attention' "
+            "FROM micro_intents WHERE model IN ('social_attention','social_attention_guarded_20261110') "
             "AND status IN ('open','queued') GROUP BY mint "
             "ORDER BY rank DESC,MAX(ready_ts) DESC LIMIT ?",(limit,))]
     discovered=[r[0] for r in db.execute(

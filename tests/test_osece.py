@@ -64,7 +64,7 @@ def test_two_distinct_source_families_create_independent_books():
     core.started_at(c,900)
     terms(c)
     observed=launch(c)
-    assert observed=={"status":"matched","sources":2,"signals":3}
+    assert observed=={"status":"matched","sources":2,"signals":4}
     sig=c.execute("SELECT variant,state FROM osece_signals ORDER BY variant").fetchall()
     assert {r["variant"] for r in sig}==set(core.BOOKS)
     assert all(r["state"]=="watch" for r in sig)
@@ -139,20 +139,20 @@ def test_two_staged_confirmations_and_later_realized_pnl(monkeypatch):
     c=db();core.started_at(c,900);terms(c);launch(c);safe(c,1300)
     quote(c,1500,1.0)
     t=core.tick(c,now=1500)
-    assert t["watching"]==3 and t["bought"]==0
+    assert t["watching"]==4 and t["bought"]==0
     quote(c,1550,1.02)
     t=core.tick(c,now=1550)
-    assert t["queued"]==3 and t["bought"]==0
+    assert t["queued"]==4 and t["bought"]==0
     quote(c,1590,1.03)
     t=core.tick(c,now=1590)
-    assert t["bought"]==3 and t["sold"]==0
+    assert t["bought"]==4 and t["sold"]==0
     all_trades=c.execute("SELECT * FROM osece_trades").fetchall()
-    assert len(all_trades)==3
+    assert len(all_trades)==4
     assert {r["variant"] for r in all_trades}==set(core.BOOKS)
     assert all(r["entry_ts"]==1590 and r["usd_in"]==10 for r in all_trades)
     quote(c,1620,1.4)
     t=core.tick(c,now=1620)
-    assert t["sold"]==3
+    assert t["sold"]==4
     report=core.report(c)
     for b in report["books"]:
         assert b["closed"]==1 and b["wins"]==1
@@ -177,7 +177,7 @@ def test_quote_gap_cannot_forge_exit(monkeypatch):
     for ts,px in ((1500,1),(1550,1.02),(1590,1.03)):
         quote(c,ts,px);core.tick(c,now=ts)
     assert core.tick(c,now=4000)["sold"]==0
-    assert c.execute("SELECT COUNT(*) FROM osece_trades WHERE exit_ts IS NULL").fetchone()[0]==3
+    assert c.execute("SELECT COUNT(*) FROM osece_trades WHERE exit_ts IS NULL").fetchone()[0]==4
 
 
 def test_bluesky_v1_and_v2_parsing_respects_real_receipt_time():
@@ -217,11 +217,11 @@ def test_paper_alert_once_per_buy_and_sell(monkeypatch):
         discord_webhook_url=""
         telegram_bot_token=""
         telegram_chat_id=""
-    assert asyncio.run(runner.notify(None,c,Cfg()))==3
+    assert asyncio.run(runner.notify(None,c,Cfg()))==4
     assert asyncio.run(runner.notify(None,c,Cfg()))==0
     quote(c,1630,1.4);core.tick(c,now=1630)
-    assert asyncio.run(runner.notify(None,c,Cfg()))==3
-    assert len(sent)==6
+    assert asyncio.run(runner.notify(None,c,Cfg()))==4
+    assert len(sent)==8
     assert all("no real" in x.lower() for x in sent)
 
 

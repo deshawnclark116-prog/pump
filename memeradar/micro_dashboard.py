@@ -28,11 +28,11 @@ def markdown(snapshot,run_id="",repo=""):
     now=snapshot["asof_utc"]
     lines=[
         MARKER,
-        "## Live $25 paper trading — eight independent accounts",
+        "## Live $25 paper trading — twelve independent accounts",
         f"**Last observed:** {now} · **Radar run:** "+
         (f"[{run_id}](https://github.com/{repo}/actions/runs/{run_id})" if run_id and repo else "unknown"),
         "",
-        "Each model has **two independent $25 wallets** ($1 and $5 stake). No real trades.",
+        "Each model has **two independent $25 paper accounts** ($1 and $5 stake). No real trades.",
         "The figures below reflect actual recorded paper fills; no bankroll top-ups.",
         "",
         "| Strategy | Stake | Cash | Open | Closed (W–L) | Realized net | Estimated equity |",
@@ -40,10 +40,12 @@ def markdown(snapshot,run_id="",repo=""):
     ]
     for r in snapshot["accounts"]:
         label={
-            micro_paper.SOCIAL:"Social Attention",
+            micro_paper.SOCIAL:"Social Attention (control)",
+            micro_paper.SOCIAL_GUARDED:"Social Guarded (prospective)",
             micro_paper.OSECE_SINGLE:"OSECE Early Signal",
             micro_paper.OSECE_COLLISION:"OSECE Collision",
             micro_paper.OSECE_LIQ:"OSECE Early Liquidity",
+            micro_paper.OSECE_COLLISION_LIQ:"OSECE Collision Early (prospective)",
         }[r["model"]]
         eq=_money(r["estimated_equity_usd"]) if r["estimated_equity_usd"] is not None else "Unpriced position"
         lines.append(
@@ -68,6 +70,29 @@ def markdown(snapshot,run_id="",repo=""):
         lines.append(
             f"| {model} | {_money(stake)} | `{t['mint'][:12]}…` | "
             f"{when} | {result} |")
+    lines+=["","### Why some signals did not become trades",
+            "Rejected or expired micro paper entries (since experiment start):"]
+    by_reason=snapshot.get("candidate_rejection_reasons") or []
+    if by_reason:
+        lines+=["| Model | Stake | Cause | Count |",
+                "|---|---:|---|---:|"]
+        for x in by_reason:
+            lines.append(
+                f"| {x['model']} | {_money(x['stake'])} | "
+                f"{x['reason'] or x['status']} | {x['count']} |")
+    else:
+        lines.append("No rejected micro intents recorded yet.")
+    osece=snapshot.get("osece_signal_diagnostics") or []
+    if osece:
+        lines+=["","OSECE signal funnel (includes watches with no qualifying entry):",
+                "| Model | State | Reason | Count |",
+                "|---|---|---|---:|"]
+        for x in osece:
+            label=x["variant"].replace("osece_v1_frozen_20261108_","").replace(
+                "osece_v1b_early_liquidity_paper_20261109","early_liquidity").replace(
+                "osece_v1c_cross_source_early_liquidity_20261110","collision_early")
+            lines.append(
+                f"| {label} | {x['state']} | {x['reason'] or '—'} | {x['count']} |")
     lines+=["","---",
             "### Modeling and integrity",
             "Fees: 1.25% + 1% slippage **each side**, plus **estimated $0.02 each side** fixed overhead. "
