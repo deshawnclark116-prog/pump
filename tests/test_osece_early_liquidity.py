@@ -78,3 +78,31 @@ def test_original_strict_books_unchanged():
     assert not core._market_entry_ok(quote_data,core.SINGLE)
     assert not core._market_entry_ok(quote_data,core.COLLISION)
     assert core._market_entry_ok(quote_data,core.EARLY_LIQ)
+
+
+def test_failed_rugcheck_is_rejected_not_misreported_as_missing_quote(monkeypatch):
+    monkeypatch.setenv("OSECE_PAPER_ENABLED","1")
+    monkeypatch.delenv("OSECE_EXIT_ONLY",raising=False)
+    monkeypatch.delenv("MICRO_PAPER_ENABLED",raising=False)
+    db=setup()
+    # Quoted price and buy flow are present. A documented failed safety
+    # record must block and label the entry, not become a fake "no quote".
+    db.execute("INSERT INTO attention_safety_history VALUES (?,?,?,?)",
+               (MINT,1300,"failed",'["top-10 holders own 90%"]'))
+    db.commit()
+    for ts,price in ((1500,1.0),(1550,1.02),(1590,1.03)):
+        quote(db,ts,price=price)
+        core.tick(db,now=ts)
+    early=db.execute(
+        "SELECT state,reason FROM osece_signals WHERE variant=?",
+        (core.EARLY_LIQ,)).fetchone()
+    assert early["state"]=="rejected"
+    assert early["reason"]=="rugcheck_failed"
+    assert db.execute("SELECT COUNT(*) FROM osece_trades").fetchone()[0]==0
+
+
+def test_cross_source_early_requires_two_prelaunch_source_families():
+    db=setup()  # only Google Trends was present before creation
+    assert db.execute(
+        "SELECT COUNT(*) FROM osece_signals WHERE variant=?",
+        (core.COLLISION_EARLY,)).fetchone()[0]==0
