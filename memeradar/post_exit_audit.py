@@ -181,6 +181,7 @@ def analyze(db, *, limit=400, sample_per_reason=PER_REASON_SAMPLE,
         "asof_utc":_utc(now),
         "total_audited_exits":len(audited),
         "unique_coin_count":len(set(t["mint"] for t in audited)),
+        "latest_recorded_exit_utc":max((t["exit_utc"] for t in audited),default=None),
         "exits_with_any_later_observed_price":sum(
             t["quotes_after_exit"]>0 for t in audited),
         "exits_without_later_observed_price":sum(
@@ -204,23 +205,28 @@ def markdown(report):
         "Analyzed at: " + report["asof_utc"], "",
         f"Closed exits: {report['total_audited_exits']} across "
         f"{report['unique_coin_count']} distinct mints.",
+        f"Latest exit IN THE SOURCE SNAPSHOT: {report['latest_recorded_exit_utc'] or 'none'} "
+        "(may be earlier than the dashboard's live report).",
         f"With any post-exit recorded quote: {report['exits_with_any_later_observed_price']}.",
         f"**Without any recorded post-exit quote: "
         f"{report['exits_without_later_observed_price']} (UNKNOWN, not zero return).**",
         "",
         "## Coverage and alternative 5/15/30/60/120 minute holds",
         "",
-        "| Exit reason | Exits | 30m observed | 30m later better | "
-        "60m observed | 60m later better |",
-        "|---|---:|---:|---:|---:|---:|",
+        "| Exit reason | Exits | 30m observed | 30m better | "
+        "30m avg extra net | 60m observed | 60m better | 60m avg extra net |",
+        "|---|---:|---:|---:|---:|---:|---:|---:|",
     ]
     for reason, r in report["by_exit_reason"].items():
         h30 = r["fixed_horizons"]["30m"]
         h60 = r["fixed_horizons"]["60m"]
         lines.append(
             f"| {reason} | {r['count']} | {h30['observed_count']} | "
-            f"{h30['better_than_actual_count']} | {h60['observed_count']} | "
-            f"{h60['better_than_actual_count']} |")
+            f"{h30['better_than_actual_count']} | "
+            f"{h30['avg_additional_usd_observed_only'] if h30['avg_additional_usd_observed_only'] is not None else 'unknown'} | "
+            f"{h60['observed_count']} | "
+            f"{h60['better_than_actual_count']} | "
+            f"{h60['avg_additional_usd_observed_only'] if h60['avg_additional_usd_observed_only'] is not None else 'unknown'} |")
     lines += ["", "## Reason-stratified coin case studies", "",
               "| Model | Mint | Exit reason | Actual net | "
               "5m later change | 30m later change | 60m later change |",
@@ -231,9 +237,9 @@ def markdown(report):
             return (f"{obj['price_change_from_exit_pct']:+.1f}%"
                     if obj["status"]=="observed" else "unknown")
         lines.append(
-            f"| {t['model']} (\${t['stake']:.0f}) | "
+            f"| {t['model']} (${t['stake']:.0f}) | "
             f"[{t['mint'][:12]}…](https://dexscreener.com/solana/{t['mint']}) | "
-            f"{t['exit_reason']} | \${t['actual_net_usd']:+.3f} | "
+            f"{t['exit_reason']} | ${t['actual_net_usd']:+.3f} | "
             f"{v('5m')} | {v('30m')} | {v('60m')} |")
     lines += [
         "",
