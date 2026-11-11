@@ -1,0 +1,92 @@
+name: post-exit-hold-audit
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "memeradar/post_exit_audit.py"
+      - "tests/test_post_exit_audit.py"
+      - ".github/workflows/post-exit-hold-audit.yml"
+  pull_request:
+    paths:
+      - "memeradar/post_exit_audit.py"
+      - "tests/test_post_exit_audit.py"
+      - ".github/workflows/post-exit-hold-audit.yml"
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+      - name: Verify post-exit analysis is causal and correctly censored
+        run: python -m unittest discover -s tests -p 'test_post_exit_audit.py' -v
+
+  analyze:
+    needs: tests
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+      - name: Restore existing radar ledger without altering live trading
+        uses: actions/cache/restore@v4
+        with:
+          path: memeradar.db
+          key: post-exit-inspection-${{ github.run_id }}
+          restore-keys: |
+            radar-db-
+      - name: If cache is unavailable recover most recent archived research DB
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if [ -s memeradar.db ]; then
+            echo "Using prior completed radar snapshot from Actions cache."
+            exit 0
+          fi
+          echo "No cache; checking immutable prior research artifacts."
+          artifact_id=$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts?per_page=50" \
+            --jq '.artifacts[] | select((.name | startswith("research-")) and (.expired == false)) | .id' \
+            | head -n 1 || true)
+          if [ -z "$artifact_id" ]; then
+            echo "::error::No saved source ledger available; cannot assert post-exit movement."
+            exit 1
+          fi
+          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$artifact_id/zip" > prior.zip
+          unzip -p prior.zip memeradar.db > memeradar.db
+          python - <<'PY'
+          import sqlite3
+          with sqlite3.connect("memeradar.db") as db:
+              assert db.execute("PRAGMA quick_check").fetchone()[0]=="ok"
+          PY
+          rm -f prior.zip
+      - name: Audit each actual paper exit against subsequent observed prices
+        run: python -m memeradar.post_exit_audit --db memeradar.db --output-dir post_exit_output
+      - name: Show post-exit sample results
+        if: always()
+        run: |
+          if [ -f post_exit_output/post_exit.md ]; then
+            cat post_exit_output/post_exit.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Audit could not access a trusted historical ledger." >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Save all per-coin observations and coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: post-exit-audit-${{ github.run_id }}
+          path: post_exit_output/
+          retention-days: 14
+          if-no-files-found: warn
